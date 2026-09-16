@@ -15,6 +15,7 @@ pureconfig = "0.17.10"
 cats-effect = "3.5.4"
 fs2 = "3.10.2"
 smartgraph = "2.3.0"
+pekko = "1.7.0"
 
 [libraries]
 guava = { module = "com.google.guava:guava", version.ref = "guava" }
@@ -34,3 +35,8 @@ javafx-swing = { module = "org.openjfx:javafx-swing", version.ref = "javafx" }
 cats-effect = { module = "org.typelevel:cats-effect_3", version.ref = "cats-effect" }
 fs2-core = { module = "co.fs2:fs2-core_3", version.ref = "fs2" }
 smartgraph = { module = "com.brunomnsilva:smartgraph", version.ref = "smartgraph" }
+pekko-actor-typed = { module = "org.apache.pekko:pekko-actor-typed_3", version.ref = "pekko" }
+pekko-cluster-typed = { module = "org.apache.pekko:pekko-cluster-typed_3", version.ref = "pekko" }
+pekko-cluster-sharding-typed = { module = "org.apache.pekko:pekko-cluster-sharding-typed_3", version.ref = "pekko" }
+pekko-serialization-jackson = { module = "org.apache.pekko:pekko-serialization-jackson_3", version.ref = "pekko" }
+pekko-actor-testkit-typed = { module = "org.apache.pekko:pekko-actor-testkit-typed_3", version.ref = "pekko" }

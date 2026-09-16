@@ -16,6 +16,14 @@ trait WeatherConditions:
 private final case class WeatherConditionsImpl(irradiance: Irradiance, temperature: AnyTemperature)
   extends WeatherConditions
 
+final case class EnvironmentSnapshot(
+  startDateTime: LocalDateTime,
+  time: FiniteDuration,
+  weather: Map[GeographicPoint, WeatherConditions]
+)
+
+
+
 object WeatherConditions:
   def apply(irradiance: Irradiance, temperature: AnyTemperature): WeatherConditions =
     WeatherConditionsImpl(irradiance, temperature)

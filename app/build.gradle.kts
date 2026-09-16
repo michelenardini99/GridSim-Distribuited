@@ -48,6 +48,13 @@ dependencies {
     implementation(libs.cats.effect)
     implementation(libs.fs2.core)
 
+    // Pekko for the distributed actor model
+    implementation(libs.pekko.actor.typed)
+    implementation(libs.pekko.cluster.typed)
+    implementation(libs.pekko.cluster.sharding.typed)
+    implementation(libs.pekko.serialization.jackson)
+    testImplementation(libs.pekko.actor.testkit.typed)
+
     // ScalaFX for GUI components
     implementation(libs.scalafx)
     targetPlatforms.forEach { platform ->
