@@ -3,6 +3,7 @@ package org.gridsim.core.actor
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
 import org.apache.pekko.actor.typed.{ActorRef, Behavior}
 import org.gridsim.core.behaviour.{EntityEvolutionHandler, EvolutionRequest}
+import org.gridsim.core.common.{Energy, Flow}
 import org.gridsim.core.model.{Environment, GridEntity, GridEntityState}
 
 import scala.concurrent.duration.FiniteDuration
@@ -16,6 +17,12 @@ object EntityActor:
     delta: FiniteDuration,
     replyTo: ActorRef[EntityEvolved]
   ) extends EntityCommand
+  
+  final case class EntityEvolved(
+    id: String, 
+    state: GridEntityState, 
+    flow: Flow[Energy]
+  )
 
   def apply(
     entityState: GridEntityState,
