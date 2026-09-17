@@ -39,4 +39,6 @@ pekko-actor-typed = { module = "org.apache.pekko:pekko-actor-typed_3", version.r
 pekko-cluster-typed = { module = "org.apache.pekko:pekko-cluster-typed_3", version.ref = "pekko" }
 pekko-cluster-sharding-typed = { module = "org.apache.pekko:pekko-cluster-sharding-typed_3", version.ref = "pekko" }
 pekko-serialization-jackson = { module = "org.apache.pekko:pekko-serialization-jackson_3", version.ref = "pekko" }
+pekko-persistence-typed = { module = "org.apache.pekko:pekko-persistence-typed_3", version.ref = "pekko" }
 pekko-actor-testkit-typed = { module = "org.apache.pekko:pekko-actor-testkit-typed_3", version.ref = "pekko" }
+pekko-persistence-testkit = { module = "org.apache.pekko:pekko-persistence-testkit_3", version.ref = "pekko" }

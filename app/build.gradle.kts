@@ -53,7 +53,9 @@ dependencies {
     implementation(libs.pekko.cluster.typed)
     implementation(libs.pekko.cluster.sharding.typed)
     implementation(libs.pekko.serialization.jackson)
+    implementation(libs.pekko.persistence.typed)
     testImplementation(libs.pekko.actor.testkit.typed)
+    testImplementation(libs.pekko.persistence.testkit)
 
     // ScalaFX for GUI components
     implementation(libs.scalafx)
