@@ -1,4 +1,4 @@
-package org.gridsim.core.actor
+package org.gridsim.actor
 
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
 import org.apache.pekko.actor.typed.{ActorRef, Behavior, SupervisorStrategy}
@@ -6,6 +6,7 @@ import org.apache.pekko.cluster.sharding.typed.scaladsl.EntityTypeKey
 import org.apache.pekko.persistence.typed.PersistenceId
 import org.apache.pekko.persistence.typed.scaladsl.{EventSourcedBehavior, RetentionCriteria}
 import org.apache.pekko.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
+import org.gridsim.actor.protocol.EntityProtocol.*
 import org.gridsim.core.behaviour.{EntityEvolutionHandler, EvolutionRequest}
 import org.gridsim.core.common.{Energy, Flow}
 import org.gridsim.core.model.{Environment, GridEntity, GridEntityState}
@@ -17,40 +18,6 @@ object EntityActor:
   val TypeKey: EntityTypeKey[EntityCommand] = EntityTypeKey("EntityActor")
 
   def entityId(simulationId: String, localId: String): String = s"$simulationId-$localId"
-
-  sealed trait EntityCommand
-
-  final case class Initialize(
-    entity: GridEntity,
-    initialState: GridEntityState,
-    replyTo: ActorRef[Ack.type]
-  ) extends EntityCommand
-
-  final case class Evolve(
-    env: Environment,
-    delta: FiniteDuration,
-    replyTo: ActorRef[EntityEvolved]
-  ) extends EntityCommand
-
-  final case class Ack() extends EntityCommand
-
-  final case class EntityEvolved(
-    id: String,
-    state: GridEntityState,
-    flow: Flow[Energy]
-  )
-
-  sealed trait EntityEvent
-
-  final case class Initialized(
-    entity: GridEntity,
-    initialState: GridEntityState
-  ) extends EntityEvent
-
-  final case class Evolved(
-    newState: GridEntityState,
-    flow: Flow[Energy]
-  ) extends EntityEvent
 
   final case class State(config: Option[GridEntity], dynamic: Option[GridEntityState])
 
