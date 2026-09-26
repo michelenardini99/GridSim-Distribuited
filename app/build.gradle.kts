@@ -43,6 +43,10 @@ dependencies {
     // Use Scala 3 library
     implementation(libs.scala.library)
 
+    // Protocols (Protobuf / ScalaPB schemas)
+    implementation(project(":protocols"))
+    implementation(libs.scalapb.runtime)
+
     // Cats for functional programming constructs
     implementation(libs.cats.core)
     implementation(libs.cats.effect)
