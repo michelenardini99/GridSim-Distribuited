@@ -5,6 +5,9 @@
  * For more details on building Java & JVM projects, please refer to https://docs.gradle.org/9.5.1/userguide/building_java_projects.html in the Gradle documentation.
  */
 
+import java.net.InetSocketAddress
+import java.net.Socket
+
 plugins {
     // Apply the scala Plugin to add support for Scala.
     scala
@@ -100,6 +103,108 @@ java {
 application {
     // Define the main class for the application.
     mainClass = "org.gridsim.gui.app.Launcher"
+}
+
+sourceSets {
+    test {
+        scala {
+            srcDir("src/test/integration")
+        }
+    }
+}
+
+var kafkaContainerSpawned = false
+val kafkaContainerName = "gridsim-kafka-test"
+
+fun runProcess(vararg command: String): Pair<Int, String> {
+    return try {
+        val process = ProcessBuilder(*command).redirectErrorStream(true).start()
+        val output = process.inputStream.bufferedReader().readText()
+        val exitCode = process.waitFor()
+        exitCode to output
+    } catch (e: Exception) {
+        -1 to (e.message ?: "Failed to execute process")
+    }
+}
+
+fun isPortOpen(host: String, port: Int): Boolean {
+    return try {
+        val socket = Socket()
+        socket.connect(InetSocketAddress(host, port), 500)
+        socket.close()
+        true
+    } catch (e: Exception) {
+        false
+    }
+}
+
+val startKafkaContainer by tasks.registering {
+    group = "verification"
+    description = "Starts a Kafka Docker container for integration tests if not already running."
+    doLast {
+        if (isPortOpen("127.0.0.1", 9092)) {
+            logger.lifecycle("Kafka broker is already running on port 9092; reusing existing broker.")
+            kafkaContainerSpawned = false
+        } else {
+            logger.lifecycle("Kafka is not running on port 9092. Starting Docker container '$kafkaContainerName' using apache/kafka:latest...")
+            runProcess("docker", "rm", "-f", kafkaContainerName)
+            val (exitCode, output) = runProcess("docker", "run", "-d", "--name", kafkaContainerName, "-p", "9092:9092", "apache/kafka:latest")
+            if (exitCode != 0) {
+                throw GradleException("Failed to start Kafka Docker container: $output")
+            }
+            kafkaContainerSpawned = true
+
+            val timeoutMillis = 30_000L
+            val startTime = System.currentTimeMillis()
+            var ready = false
+            logger.lifecycle("Waiting for Kafka container to accept connections on port 9092...")
+            while (!ready && System.currentTimeMillis() - startTime < timeoutMillis) {
+                Thread.sleep(1000)
+                if (isPortOpen("127.0.0.1", 9092)) {
+                    ready = true
+                }
+            }
+            if (!ready) {
+                throw GradleException("Timed out waiting for Kafka Docker container '$kafkaContainerName' to become ready on port 9092.")
+            }
+            Thread.sleep(2000)
+            logger.lifecycle("Kafka container is ready on port 9092.")
+        }
+    }
+}
+
+val stopKafkaContainer by tasks.registering {
+    group = "verification"
+    description = "Stops the Kafka Docker container if it was started by Gradle."
+    doLast {
+        if (kafkaContainerSpawned) {
+            logger.lifecycle("Stopping and removing Kafka container '$kafkaContainerName'...")
+            runProcess("docker", "rm", "-f", "-v", kafkaContainerName)
+            kafkaContainerSpawned = false
+            logger.lifecycle("Kafka container stopped.")
+        }
+    }
+}
+
+tasks.named<Test>("test") {
+    exclude("org/gridsim/integration/**")
+    filter {
+        excludeTestsMatching("org.gridsim.integration.*")
+    }
+}
+
+tasks.register<Test>("integrationTest") {
+    group = "verification"
+    description = "Runs integration tests against external services (e.g. Apache Kafka)."
+    testClassesDirs = sourceSets["test"].output.classesDirs
+    classpath = sourceSets["test"].runtimeClasspath
+    include("org/gridsim/integration/**")
+    filter {
+        includeTestsMatching("org.gridsim.integration.*")
+    }
+    shouldRunAfter(tasks.named("test"))
+    dependsOn(startKafkaContainer)
+    finalizedBy(stopKafkaContainer)
 }
 
 tasks.jar {
