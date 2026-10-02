@@ -2,15 +2,15 @@ package org.gridsim.actor
 
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
 import org.apache.pekko.actor.typed.{ActorRef, Behavior, Scheduler}
-import org.apache.pekko.cluster.sharding.typed.scaladsl.EntityRef
-import org.apache.pekko.cluster.sharding.typed.scaladsl.EntityTypeKey
+import org.apache.pekko.cluster.sharding.typed.scaladsl.{EntityRef, EntityTypeKey}
 import org.apache.pekko.dispatch.Futures
 import org.apache.pekko.persistence.typed.PersistenceId
 import org.apache.pekko.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
 import org.apache.pekko.util.Timeout
 import org.gridsim.actor.SimulationActor.Status.{IdleStatus, PausedStatus, RunningStatus, StoppedStatus}
 import org.gridsim.actor.protocol.EntityProtocol.{EntityCommand, EntityEvolved, Evolve}
-import org.gridsim.actor.protocol.SimulationProtocol.{Ack, EntitiesEvolved, Initialize, Initialized, Pause, Paused, SimulationCommand, SimulationEvent, Start, Started, TickAdvanced, TickFailed, TickTimer, Stopped}
+import org.gridsim.actor.protocol.SimulationProtocol.{Ack, EntitiesEvolved, Initialize, Initialized, Pause, Paused, SimulationCommand, SimulationEvent, Start, Started, Stopped, TickAdvanced, TickFailed, TickTimer}
+import org.gridsim.actor.telemetry.{SimulationTickPublisher, TelemetryPublisher}
 import org.gridsim.core.common.Power
 import org.gridsim.core.model.Environment
 import org.gridsim.core.simulation.{SimulationConf, SimulationModel, SimulationState}
@@ -27,77 +27,86 @@ object SimulationActor:
 
   val TypeKey: EntityTypeKey[SimulationCommand] = EntityTypeKey("SimulationActor")
 
-  final case class State(model: Option[SimulationModel], status: Status, env: Option[Environment], conf: Option[SimulationConf])
+  final case class State(
+    model: Option[SimulationModel],
+    status: Status,
+    env: Option[Environment],
+    conf: Option[SimulationConf],
+    tick: Long = 0L
+  )
 
   def apply(
     persistenceId: PersistenceId,
     entityRefFor: String => EntityRef[EntityCommand],
     flowSolver: PowerFlowSolver,
-    tickTimeout: FiniteDuration
+    tickTimeout: FiniteDuration,
+    publisher: SimulationTickPublisher = TelemetryPublisher.NoOpSimulationTickPublisher
   ): Behavior[SimulationCommand] =
     Behaviors.setup { context =>
       implicit val ec: ExecutionContext = context.executionContext
       EventSourcedBehavior[SimulationCommand, SimulationEvent, State](
         persistenceId,
-        emptyState = State(None, IdleStatus, None, None),
+        emptyState = State(None, IdleStatus, None, None, 0L),
         commandHandler = (state, cmd) => (state, cmd) match
-          case (State(None, _, _, _), Initialize(model, initState, conf, replyTo)) =>
+          case (State(None, _, _, _, _), Initialize(model, initState, conf, replyTo)) =>
             Effect
               .persist(Initialized(model, initState.environment, conf))
               .thenRun(_ => replyTo ! Ack)
 
-          case (State(Some(_), IdleStatus | PausedStatus, _, _), Start) =>
+          case (State(Some(_), IdleStatus | PausedStatus, _, _, _), Start) =>
             Effect
               .persist(Started)
               .thenRun(_ => context.self ! TickTimer)
 
-          case (State(Some(_), RunningStatus, _, _), Pause) =>
+          case (State(Some(_), RunningStatus, _, _, _), Pause) =>
             Effect
               .persist(Paused)
 
-          case (State(Some(model), RunningStatus, Some(env), Some(conf)), TickTimer) =>
+          case (State(Some(model), RunningStatus, Some(env), Some(conf), currentTick), TickTimer) =>
             Effect
               .none
-              .thenRun{ _ =>
+              .thenRun { _ =>
                 implicit val timeout: Timeout = Timeout(tickTimeout)
                 implicit val scheduler: Scheduler = context.system.scheduler
 
                 val newEnv = env.advance(conf.delta)
                 val futures: Iterable[Future[EntityEvolved]] = model.grid.nodes.map { e =>
-                  entityRefFor(e.id).ask(replyTo => Evolve(newEnv, conf.delta, replyTo))
+                  entityRefFor(e.id).ask(replyTo => Evolve(newEnv, conf.delta, replyTo, currentTick))
                 }
 
                 context.pipeToSelf(Future.sequence(futures)) {
                   case Success(results) => EntitiesEvolved(newEnv, results.toList)
-                  case Failure(ex) => TickFailed(ex)
+                  case Failure(ex)      => TickFailed(ex)
                 }
               }
 
-          case(State(Some(model), RunningStatus, _, Some(conf)), EntitiesEvolved(newEnv, results)) =>
+          case (State(Some(model), RunningStatus, _, Some(conf), currentTick), EntitiesEvolved(newEnv, results)) =>
+            val nextTick = currentTick + 1
             Effect
-              .persist(TickAdvanced(newEnv))
-              .thenRun{ _ =>
+              .persist(TickAdvanced(newEnv, nextTick))
+              .thenRun { _ =>
                 val flows = results.map(r => r.id -> r.flow).toMap
                 val cableLoads = flowSolver.solve(flows).toMap
 
-                val snapshot = SimulationState(newEnv, results.map(r => r.id -> r.state).toMap, flows, cableLoads)
-                //here send to subscriber
+                // Publish global tick, environment, and cable load distribution to Kafka
+                publisher.publish(currentTick, newEnv, cableLoads, conf.delta)
+
                 context.scheduleOnce(tickTimeout, context.self, TickTimer)
               }
 
           case (_, TickFailed(ex)) =>
-            context.log.warn("Tick failed, retying", ex)
+            context.log.warn("Tick failed, retrying", ex)
             Effect
               .none
               .thenRun(_ => context.scheduleOnce(tickTimeout, context.self, TickTimer))
 
           case _ => Effect.unhandled
         ,
-        eventHandler = (state, event) =>  event match
-          case Initialized(model, env, conf) => State(Some(model), IdleStatus, Some(env), Some(conf))
-          case Started => state.copy(status = RunningStatus)
-          case Paused => state.copy(status = PausedStatus)
-          case Stopped => state.copy(status = StoppedStatus)
-          case TickAdvanced(env) => state.copy(env = Some(env))
+        eventHandler = (state, event) => event match
+          case Initialized(model, env, conf) => State(Some(model), IdleStatus, Some(env), Some(conf), 0L)
+          case Started                      => state.copy(status = RunningStatus)
+          case Paused                       => state.copy(status = PausedStatus)
+          case Stopped                      => state.copy(status = StoppedStatus)
+          case TickAdvanced(env, tick)      => state.copy(env = Some(env), tick = tick)
       )
     }

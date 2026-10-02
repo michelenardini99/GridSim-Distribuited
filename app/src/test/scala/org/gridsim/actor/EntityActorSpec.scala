@@ -63,11 +63,12 @@ class EntityActorSpec
 
   private def kitFor(
     handler: EntityEvolutionHandler,
-    persistenceId: PersistenceId = newPersistenceId()
+    persistenceId: PersistenceId = newPersistenceId(),
+    publisher: org.gridsim.actor.telemetry.EntityTelemetryPublisher = org.gridsim.actor.telemetry.TelemetryPublisher.NoOpEntityTelemetryPublisher
   ): EventSourcedBehaviorTestKit[EntityCommand, EntityEvent, State] =
     EventSourcedBehaviorTestKit[EntityCommand, EntityEvent, State](
       testKit.system,
-      EntityActor(persistenceId, _ => handler),
+      EntityActor(persistenceId, _ => handler, publisher),
       EventSourcedBehaviorTestKit.SerializationSettings.disabled
     )
 
@@ -125,7 +126,7 @@ class EntityActorSpec
     kit.runCommand[Ack.type](replyTo => Initialize(entity, initialState, replyTo))
     val result = kit.runCommand[EntityEvolved](replyTo => Evolve(testEnvironment(), 1.hour, replyTo))
 
-    result.reply shouldBe EntityEvolved(entity.id, evolvedState, Surplus(2.kwh))
+    result.reply shouldBe EntityEvolved(entity.id, Surplus(2.kwh))
     result.event shouldBe Evolved(evolvedState, Surplus(2.kwh))
     result.state shouldBe State(Some(entity), Some(evolvedState))
   }
@@ -154,11 +155,11 @@ class EntityActorSpec
 
     kit.runCommand[Ack.type](replyTo => Initialize(entity, initialState, replyTo))
 
-    val first = kit.runCommand[EntityEvolved](replyTo => Evolve(testEnvironment(), 1.hour, replyTo))
-    first.reply shouldBe EntityEvolved(entity.id, afterFirst, Flow.Balanced)
+    val first = kit.runCommand[EntityEvolved](replyTo => Evolve(testEnvironment(), 1.hour, replyTo, 0L))
+    first.reply shouldBe EntityEvolved(entity.id, Flow.Balanced)
 
-    val second = kit.runCommand[EntityEvolved](replyTo => Evolve(testEnvironment(), 1.hour, replyTo))
-    second.reply shouldBe EntityEvolved(entity.id, afterSecond, Flow.Balanced)
+    val second = kit.runCommand[EntityEvolved](replyTo => Evolve(testEnvironment(), 1.hour, replyTo, 1L))
+    second.reply shouldBe EntityEvolved(entity.id, Flow.Balanced)
 
     handler.stateSeenOnSecondCall shouldBe Some(afterFirst)
   }
@@ -172,7 +173,7 @@ class EntityActorSpec
     kit.runCommand[Ack.type](replyTo => Initialize(entity, initialState, replyTo))
     val result = kit.runCommand[EntityEvolved](replyTo => Evolve(testEnvironment(), 1.hour, replyTo))
 
-    result.reply shouldBe EntityEvolved(entity.id, initialState, Deficit(1.5.kwh))
+    result.reply shouldBe EntityEvolved(entity.id, Deficit(1.5.kwh))
   }
 
   it should "report a balanced flow returned by the handler as-is" in {
@@ -184,7 +185,26 @@ class EntityActorSpec
     kit.runCommand[Ack.type](replyTo => Initialize(entity, initialState, replyTo))
     val result = kit.runCommand[EntityEvolved](replyTo => Evolve(testEnvironment(), 1.hour, replyTo))
 
-    result.reply shouldBe EntityEvolved(entity.id, initialState, Flow.Balanced)
+    result.reply shouldBe EntityEvolved(entity.id, Flow.Balanced)
+  }
+
+  it should "publish telemetry directly to the EntityTelemetryPublisher when evolving" in {
+    val entity = TestEntity("E_TELEMETRY")
+    val initialState = TestEntityState("E_TELEMETRY", value = 10)
+    val evolvedState = TestEntityState("E_TELEMETRY", value = 20)
+    val handler = RecordingHandler(evolvedState, Surplus(5.kwh))
+    val publisher = new org.gridsim.actor.telemetry.TelemetryPublisher.RecordingEntityTelemetryPublisher()
+    val kit = kitFor(handler, publisher = publisher)
+
+    kit.runCommand[Ack.type](replyTo => Initialize(entity, initialState, replyTo))
+    kit.runCommand[EntityEvolved](replyTo => Evolve(testEnvironment(), 15.minutes, replyTo, 42L))
+
+    publisher.records should have size 1
+    val record = publisher.records.head
+    record.entityId shouldBe "E_TELEMETRY"
+    record.tick shouldBe 42L
+    record.state shouldBe evolvedState
+    record.flow shouldBe Surplus(5.kwh)
   }
 
 

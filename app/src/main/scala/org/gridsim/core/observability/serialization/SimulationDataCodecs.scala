@@ -8,7 +8,7 @@ import org.gridsim.core.model.network.{Cable, CableConnections}
 import org.gridsim.core.model.storage.battery.BatteryState
 import org.gridsim.core.observability.SimulationData
 import org.gridsim.protocol.v1.common.{CableConnectionsMessage, CableMessage, FlowMessage}
-import org.gridsim.protocol.v1.entity_state.{BatteryStateMessage, GridEntityStateMessage, HouseStateMessage, SolarPanelStateMessage}
+import org.gridsim.protocol.v1.entity_state.*
 import org.gridsim.protocol.v1.simulation_data.*
 
 import java.time.LocalDateTime
@@ -220,6 +220,63 @@ object SimulationDataCodecs:
       case SimulationDataMessage.Data.Empty =>
         Left("Empty SimulationDataMessage payload")
 
+  // --- Hybrid Telemetry Codecs ---
+
+  def toProtoTelemetry(
+      entityId: String,
+      tick: Long,
+      state: GridEntityState,
+      flow: Flow[Energy]
+  ): EntityTelemetryMessage =
+    EntityTelemetryMessage(
+      entityId = entityId,
+      tick = tick,
+      state = Some(toProto(state)),
+      flow = Some(toProto(flow))
+    )
+
+  def toDomainTelemetry(
+      msg: EntityTelemetryMessage
+  ): Either[String, (String, Long, GridEntityState, Flow[Energy])] =
+    for {
+      stateMsg <- msg.state.toRight("Missing state in EntityTelemetryMessage")
+      state <- toDomain(stateMsg)
+      flowMsg <- msg.flow.toRight("Missing flow in EntityTelemetryMessage")
+      flow <- toDomain(flowMsg)
+    } yield (msg.entityId, msg.tick, state, flow)
+
+  def toProtoGridTick(
+      tick: Long,
+      env: Environment,
+      cableLoads: Map[Cable, Energy],
+      delta: FiniteDuration
+  ): GridTickMessage =
+    val entries = cableLoads.map { case (cable, energy) =>
+      CableLoadEntry(cable = Some(toProto(cable)), loadKwh = energy.toDouble)
+    }.toSeq
+    GridTickMessage(
+      tick = tick,
+      environment = Some(toProto(env)),
+      cableLoads = Some(CableLoadsDataMessage(loads = entries)),
+      deltaNanos = delta.toNanos
+    )
+
+  def toDomainGridTick(
+      msg: GridTickMessage
+  ): Either[String, (Long, Environment, Map[Cable, Energy], FiniteDuration)] =
+    for {
+      envMsg <- msg.environment.toRight("Missing environment in GridTickMessage")
+      env <- toDomain(envMsg)
+      loadsMsg <- msg.cableLoads.toRight("Missing cable_loads in GridTickMessage")
+      loads <- loadsMsg.loads.toList.traverse { entry =>
+        for {
+          cMsg <- entry.cable.toRight("Missing cable in CableLoadEntry")
+          cable <- toDomain(cMsg)
+        } yield (cable, Energy(entry.loadKwh))
+      }.map(_.toMap)
+      delta = FiniteDuration(msg.deltaNanos, TimeUnit.NANOSECONDS)
+    } yield (msg.tick, env, loads, delta)
+
   // --- Binary Serialization Helpers for Kafka ---
 
   extension (data: SimulationData)
@@ -233,4 +290,34 @@ object SimulationDataCodecs:
     scala.util.Try(SimulationDataMessage.parseFrom(bytes)).toEither
       .left.map(err => s"Protobuf parse error: ${err.getMessage}")
       .flatMap(toDomain)
+
+  def telemetryToBinary(
+      entityId: String,
+      tick: Long,
+      state: GridEntityState,
+      flow: Flow[Energy]
+  ): Array[Byte] =
+    toProtoTelemetry(entityId, tick, state, flow).toByteArray
+
+  def telemetryFromBinary(
+      bytes: Array[Byte]
+  ): Either[String, (String, Long, GridEntityState, Flow[Energy])] =
+    scala.util.Try(EntityTelemetryMessage.parseFrom(bytes)).toEither
+      .left.map(err => s"Protobuf parse error: ${err.getMessage}")
+      .flatMap(toDomainTelemetry)
+
+  def gridTickToBinary(
+      tick: Long,
+      env: Environment,
+      cableLoads: Map[Cable, Energy],
+      delta: FiniteDuration
+  ): Array[Byte] =
+    toProtoGridTick(tick, env, cableLoads, delta).toByteArray
+
+  def gridTickFromBinary(
+      bytes: Array[Byte]
+  ): Either[String, (Long, Environment, Map[Cable, Energy], FiniteDuration)] =
+    scala.util.Try(GridTickMessage.parseFrom(bytes)).toEither
+      .left.map(err => s"Protobuf parse error: ${err.getMessage}")
+      .flatMap(toDomainGridTick)
 

@@ -19,6 +19,7 @@ pekko = "1.7.0"
 scalapb = "0.11.17"
 protoc = "3.25.5"
 protobuf-plugin = "0.9.4"
+kafka = "3.8.0"
 
 [libraries]
 guava = { module = "com.google.guava:guava", version.ref = "guava" }
@@ -47,6 +48,7 @@ pekko-actor-testkit-typed = { module = "org.apache.pekko:pekko-actor-testkit-typ
 pekko-persistence-testkit = { module = "org.apache.pekko:pekko-persistence-testkit_3", version.ref = "pekko" }
 scalapb-runtime = { module = "com.thesamet.scalapb:scalapb-runtime_3", version.ref = "scalapb" }
 protobuf-java = { module = "com.google.protobuf:protobuf-java", version.ref = "protoc" }
+kafka-clients = { module = "org.apache.kafka:kafka-clients", version.ref = "kafka" }
 
 [plugins]
 protobuf = { id = "com.google.protobuf", version.ref = "protobuf-plugin" }

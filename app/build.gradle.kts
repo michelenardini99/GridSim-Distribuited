@@ -47,6 +47,11 @@ dependencies {
     implementation(project(":protocols"))
     implementation(libs.scalapb.runtime)
 
+    // Kafka client for distributed telemetry
+    implementation(libs.kafka.clients) {
+        exclude(group = "org.lz4", module = "lz4-java")
+    }
+
     // Cats for functional programming constructs
     implementation(libs.cats.core)
     implementation(libs.cats.effect)

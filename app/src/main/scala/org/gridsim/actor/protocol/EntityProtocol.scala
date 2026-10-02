@@ -18,14 +18,14 @@ object EntityProtocol:
   final case class Evolve(
     env: Environment,
     delta: FiniteDuration,
-    replyTo: ActorRef[EntityEvolved]
+    replyTo: ActorRef[EntityEvolved],
+    tick: Long = 0L
   ) extends EntityCommand
 
-  final case class Ack() extends EntityCommand
+  case object Ack extends EntityCommand
 
   final case class EntityEvolved(
     id: String,
-    state: GridEntityState,
     flow: Flow[Energy]
   )
 

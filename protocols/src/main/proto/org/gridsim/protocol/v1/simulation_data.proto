@@ -48,3 +48,10 @@ message SimulationDataMessage {
     SimulationSnapshotMessage simulation_snapshot = 5;
   }
 }
+
+message GridTickMessage {
+  int64 tick = 1;
+  EnvironmentMessage environment = 2;
+  CableLoadsDataMessage cable_loads = 3;
+  int64 delta_nanos = 4;
+}

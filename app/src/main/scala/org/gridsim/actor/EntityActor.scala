@@ -4,9 +4,9 @@ import org.apache.pekko.actor.typed.scaladsl.Behaviors
 import org.apache.pekko.actor.typed.{ActorRef, Behavior, SupervisorStrategy}
 import org.apache.pekko.cluster.sharding.typed.scaladsl.EntityTypeKey
 import org.apache.pekko.persistence.typed.PersistenceId
-import org.apache.pekko.persistence.typed.scaladsl.{EventSourcedBehavior, RetentionCriteria}
-import org.apache.pekko.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
+import org.apache.pekko.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, RetentionCriteria}
 import org.gridsim.actor.protocol.EntityProtocol.*
+import org.gridsim.actor.telemetry.{EntityTelemetryPublisher, TelemetryPublisher}
 import org.gridsim.core.behaviour.{EntityEvolutionHandler, EvolutionRequest}
 import org.gridsim.core.common.{Energy, Flow}
 import org.gridsim.core.model.{Environment, GridEntity, GridEntityState}
@@ -23,7 +23,8 @@ object EntityActor:
 
   def apply(
     persistenceId: PersistenceId,
-    handlerFor: GridEntity => EntityEvolutionHandler
+    handlerFor: GridEntity => EntityEvolutionHandler,
+    publisher: EntityTelemetryPublisher = TelemetryPublisher.NoOpEntityTelemetryPublisher
   ): Behavior[EntityCommand] =
     EventSourcedBehavior[EntityCommand, EntityEvent, State](
       persistenceId,
@@ -34,11 +35,14 @@ object EntityActor:
             Effect
               .persist(Initialized(entity, initialState))
               .thenRun(_ => replyTo ! Ack)
-          case (State(Some(entity), Some(dyn)), Evolve(env, delta, replyTo)) =>
+          case (State(Some(entity), Some(dyn)), Evolve(env, delta, replyTo, tick)) =>
             val (newState, flow) = handlerFor(entity).evolve(EvolutionRequest(entity, dyn, env, delta))
             Effect
               .persist(Evolved(newState, flow))
-              .thenRun(_ => replyTo ! EntityEvolved(entity.id, newState, flow))
+              .thenRun { _ =>
+                publisher.publish(entity.id, tick, newState, flow)
+                replyTo ! EntityEvolved(entity.id, flow)
+              }
           case _ => Effect.unhandled
       },
       eventHandler = (state, event) => {
@@ -57,5 +61,3 @@ object EntityActor:
         minBackoff = 200.millis, maxBackoff = 5.seconds, randomFactor = 0.2
       )
     )
-
-

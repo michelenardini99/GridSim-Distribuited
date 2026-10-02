@@ -44,4 +44,4 @@ object SimulationProtocol:
   case object Paused extends SimulationEvent
   case object Stopped extends SimulationEvent
   
-  final case class TickAdvanced(env: Environment) extends SimulationEvent
+  final case class TickAdvanced(env: Environment, tick: Long = 0L) extends SimulationEvent
