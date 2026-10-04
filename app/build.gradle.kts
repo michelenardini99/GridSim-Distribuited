@@ -70,6 +70,7 @@ dependencies {
     implementation(libs.pekko.http.spray.json)
     testImplementation(libs.pekko.actor.testkit.typed)
     testImplementation(libs.pekko.persistence.testkit)
+    testImplementation(libs.pekko.http.testkit)
 
     // ScalaFX for GUI components
     implementation(libs.scalafx)

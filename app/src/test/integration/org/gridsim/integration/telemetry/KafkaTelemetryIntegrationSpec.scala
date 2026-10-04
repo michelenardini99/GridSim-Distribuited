@@ -167,16 +167,12 @@ class KafkaTelemetryIntegrationSpec
     val model = SimulationModel(gridGraph)
     val conf = SimulationConf(delta = delta)
 
-    val dummySolver = new PowerFlowSolver:
-      override def solve(flows: collection.Map[String, Flow[Energy]]): collection.Map[Cable, Energy] =
-        Map(cable -> 12.5.kwh)
 
     val kit = EventSourcedBehaviorTestKit[SimulationCommand, SimulationEvent, SimulationActor.State](
       testKit.system,
       SimulationActor(
         PersistenceId(SimulationActor.TypeKey.name, UUID.randomUUID().toString),
         id => TestEntityRef(EntityActor.TypeKey, id, testKit.spawn(org.apache.pekko.actor.typed.scaladsl.Behaviors.ignore[EntityCommand])),
-        dummySolver,
         1.hour,
         tickPublisher
       ),

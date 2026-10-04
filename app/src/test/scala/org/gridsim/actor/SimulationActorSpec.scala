@@ -63,7 +63,6 @@ class SimulationActorSpec
       SimulationActor(
         newPersistenceId(),
         id => mockEntityRef(id),
-        dummySolver,
         1.hour,
         publisher
       ),
