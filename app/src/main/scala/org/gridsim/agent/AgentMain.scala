@@ -72,7 +72,10 @@ object AgentMain:
       val registry = context.spawn(SimulationRegistryActor(), "simulationRegistry")
 
       // 4. Start HTTP Server
-      val routes = new SimulationControlRoutes(registry, sharding).routes
+      val routes = new SimulationControlRoutes(
+        registry, 
+        (id: String) => sharding.entityRefFor(SimulationActor.TypeKey, id)
+      ).routes
       
       val bindingFuture = Http().newServerAt("0.0.0.1", 8080).bind(routes)
       

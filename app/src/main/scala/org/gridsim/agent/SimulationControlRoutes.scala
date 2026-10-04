@@ -9,7 +9,7 @@ import spray.json.RootJsonFormat
 import org.apache.pekko.actor.typed.ActorSystem
 import org.apache.pekko.actor.typed.scaladsl.AskPattern._
 import org.apache.pekko.util.Timeout
-import org.apache.pekko.cluster.sharding.typed.scaladsl.ClusterSharding
+import org.apache.pekko.cluster.sharding.typed.scaladsl.EntityRef
 import org.gridsim.actor.protocol.SimulationProtocol._
 import org.gridsim.actor.SimulationActor
 import org.apache.pekko.actor.typed.ActorRef
@@ -34,7 +34,7 @@ object SimulationJsonFormats:
 
 class SimulationControlRoutes(
     registry: ActorRef[SimulationRegistryActor.Command],
-    sharding: ClusterSharding
+    entityRefFor: String => EntityRef[SimulationCommand]
 )(implicit system: ActorSystem[_]):
 
   import SimulationJsonFormats._
@@ -63,7 +63,7 @@ class SimulationControlRoutes(
                         onSuccess(f) { _ =>
                           val seededState = state.copy(environment = Environment(LocalDateTime.now()))
                           val conf = SimulationConf(delta = tickDelta)
-                          val entityRef = sharding.entityRefFor(SimulationActor.TypeKey, id)
+                          val entityRef = entityRefFor(id)
                           
                           // Initialize the simulation actor
                           entityRef.ask(replyTo => Initialize(model, seededState, conf, replyTo)).map { _ =>
@@ -86,21 +86,21 @@ class SimulationControlRoutes(
           concat(
             path("start") {
               post {
-                val entityRef = sharding.entityRefFor(SimulationActor.TypeKey, id)
+                val entityRef = entityRefFor(id)
                 entityRef ! Start
                 complete(MessageResponse(s"Start command sent to simulation $id"))
               }
             },
             path("pause") {
               post {
-                val entityRef = sharding.entityRefFor(SimulationActor.TypeKey, id)
+                val entityRef = entityRefFor(id)
                 entityRef ! Pause
                 complete(MessageResponse(s"Pause command sent to simulation $id"))
               }
             },
             pathEnd {
               delete {
-                val entityRef = sharding.entityRefFor(SimulationActor.TypeKey, id)
+                val entityRef = entityRefFor(id)
                 entityRef ! Stop
                 val f = registry.ask(SimulationRegistryActor.UnregisterSimulation(id, _))
                 onSuccess(f) { _ =>
