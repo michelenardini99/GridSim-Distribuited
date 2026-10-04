@@ -38,7 +38,6 @@ object SimulationActor:
   def apply(
     persistenceId: PersistenceId,
     entityRefFor: String => EntityRef[EntityCommand],
-    flowSolver: PowerFlowSolver,
     tickTimeout: FiniteDuration,
     publisher: SimulationTickPublisher = TelemetryPublisher.NoOpSimulationTickPublisher
   ): Behavior[SimulationCommand] =
@@ -86,6 +85,7 @@ object SimulationActor:
               .persist(TickAdvanced(newEnv, nextTick))
               .thenRun { _ =>
                 val flows = results.map(r => r.id -> r.flow).toMap
+                val flowSolver = org.gridsim.core.solver.KirchhoffPowerFlowSolver(model.grid)
                 val cableLoads = flowSolver.solve(flows).toMap
 
                 // Publish global tick, environment, and cable load distribution to Kafka
