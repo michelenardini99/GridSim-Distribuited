@@ -66,6 +66,8 @@ dependencies {
     implementation(libs.pekko.cluster.sharding.typed)
     implementation(libs.pekko.serialization.jackson)
     implementation(libs.pekko.persistence.typed)
+    implementation(libs.pekko.http)
+    implementation(libs.pekko.http.spray.json)
     testImplementation(libs.pekko.actor.testkit.typed)
     testImplementation(libs.pekko.persistence.testkit)
 
