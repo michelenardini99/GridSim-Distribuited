@@ -1,23 +1,24 @@
 package org.gridsim.actor
 
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
-import org.apache.pekko.actor.typed.{ActorRef, Behavior, Scheduler}
+import org.apache.pekko.actor.typed.{ActorRef, Behavior, Scheduler, SupervisorStrategy}
 import org.apache.pekko.cluster.sharding.typed.scaladsl.EntityRef
 import org.apache.pekko.cluster.sharding.typed.scaladsl.EntityTypeKey
 import org.apache.pekko.dispatch.Futures
 import org.apache.pekko.persistence.typed.PersistenceId
 import org.apache.pekko.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
+import org.apache.pekko.persistence.typed.RecoveryCompleted
 import org.apache.pekko.util.Timeout
 import org.gridsim.actor.SimulationActor.Status.{IdleStatus, PausedStatus, RunningStatus, StoppedStatus}
 import org.gridsim.actor.protocol.EntityProtocol.{EntityCommand, EntityEvolved, Evolve}
-import org.gridsim.actor.protocol.SimulationProtocol.{Ack, EntitiesEvolved, Initialize, Initialized, Pause, Paused, SimulationCommand, SimulationEvent, Start, Started, TickAdvanced, TickFailed, TickTimer, Stopped}
+import org.gridsim.actor.protocol.SimulationProtocol.{Ack, EntitiesEvolved, Initialize, Initialized, Pause, Paused, SimulationCommand, SimulationEvent, Start, Started, Stopped, TickAdvanced, TickFailed, TickTimer}
 import org.gridsim.core.common.Power
 import org.gridsim.core.model.Environment
 import org.gridsim.core.simulation.{SimulationConf, SimulationModel, SimulationState}
 import org.gridsim.core.solver.PowerFlowSolver
 
 import scala.concurrent.{ExecutionContext, Future}
-import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.duration.{DurationInt, FiniteDuration}
 import scala.util.{Failure, Success}
 
 object SimulationActor:
@@ -86,7 +87,7 @@ object SimulationActor:
               }
 
           case (_, TickFailed(ex)) =>
-            context.log.warn("Tick failed, retying", ex)
+            context.log.warn("Tick failed, retrying", ex)
             Effect
               .none
               .thenRun(_ => context.scheduleOnce(tickTimeout, context.self, TickTimer))
@@ -100,4 +101,14 @@ object SimulationActor:
           case Stopped => state.copy(status = StoppedStatus)
           case TickAdvanced(env) => state.copy(env = Some(env))
       )
+        .receiveSignal {
+          case (State(Some(_), RunningStatus, _, _), RecoveryCompleted) =>
+            context.log.info("Recovery completed for the simulation: ", persistenceId.id)
+            context.self ! TickTimer
+        }
+        .onPersistFailure(
+          SupervisorStrategy.restartWithBackoff(
+            minBackoff = 200.millis, maxBackoff = 5.seconds, randomFactor = 0.2
+          )
+        )
     }
