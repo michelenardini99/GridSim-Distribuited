@@ -117,7 +117,7 @@ object SimulationActor:
           case TickAdvanced(env, tick)      => state.copy(env = Some(env), tick = tick)
       )
         .receiveSignal {
-          case (State(Some(_), RunningStatus, _, _), RecoveryCompleted) =>
+          case (State(Some(_), RunningStatus, _, _, _), RecoveryCompleted) =>
             context.log.info("Recovery completed for the simulation: ", persistenceId.id)
             context.self ! TickTimer
         }
