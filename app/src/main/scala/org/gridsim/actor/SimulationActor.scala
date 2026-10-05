@@ -1,14 +1,9 @@
 package org.gridsim.actor
 
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
-<<<<<<< HEAD
 import org.apache.pekko.actor.typed.{ActorRef, Behavior, Scheduler, SupervisorStrategy}
 import org.apache.pekko.cluster.sharding.typed.scaladsl.EntityRef
 import org.apache.pekko.cluster.sharding.typed.scaladsl.EntityTypeKey
-=======
-import org.apache.pekko.actor.typed.{ActorRef, Behavior, Scheduler}
-import org.apache.pekko.cluster.sharding.typed.scaladsl.{EntityRef, EntityTypeKey}
->>>>>>> origin/feature/remote-ui
 import org.apache.pekko.dispatch.Futures
 import org.apache.pekko.persistence.typed.PersistenceId
 import org.apache.pekko.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
