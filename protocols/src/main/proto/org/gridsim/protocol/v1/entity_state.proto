@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package org.gridsim.protocol.v1;
+
+import "org/gridsim/protocol/v1/common.proto";
+
+message SolarPanelStateMessage {
+  double efficiency = 1;
+}
+
+message BatteryStateMessage {
+  double current_charge_kwh = 1;
+}
+
+message HouseStateMessage {
+  repeated GridEntityStateMessage component_states = 1;
+}
+
+message GridEntityStateMessage {
+  string entity_id = 1;
+  oneof state {
+    SolarPanelStateMessage solar_panel = 2;
+    BatteryStateMessage battery = 3;
+    HouseStateMessage house = 4;
+  }
+}
+
+message EntityTelemetryMessage {
+  string entity_id = 1;
+  int64 tick = 2;
+  GridEntityStateMessage state = 3;
+  FlowMessage flow = 4;
+}

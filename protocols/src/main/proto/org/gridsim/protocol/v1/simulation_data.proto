@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package org.gridsim.protocol.v1;
+
+import "org/gridsim/protocol/v1/common.proto";
+import "org/gridsim/protocol/v1/entity_state.proto";
+
+message EnvironmentMessage {
+  string start_date_time_iso = 1;
+  int64 time_nanos = 2;
+}
+
+message EnvironmentDataMessage {
+  EnvironmentMessage environment = 1;
+}
+
+message EntityStatesDataMessage {
+  map<string, GridEntityStateMessage> states = 1;
+}
+
+message EntityFlowsDataMessage {
+  map<string, FlowMessage> flows = 1;
+}
+
+message CableLoadEntry {
+  CableMessage cable = 1;
+  double load_kwh = 2;
+}
+
+message CableLoadsDataMessage {
+  repeated CableLoadEntry loads = 1;
+}
+
+message SimulationSnapshotMessage {
+  EnvironmentMessage environment = 1;
+  map<string, GridEntityStateMessage> entity_states = 2;
+  map<string, FlowMessage> entity_flows = 3;
+  repeated CableLoadEntry cable_loads = 4;
+  int64 delta_nanos = 5;
+}
+
+message SimulationDataMessage {
+  oneof data {
+    EnvironmentDataMessage environment_data = 1;
+    EntityStatesDataMessage entity_states_data = 2;
+    EntityFlowsDataMessage entity_flows_data = 3;
+    CableLoadsDataMessage cable_loads_data = 4;
+    SimulationSnapshotMessage simulation_snapshot = 5;
+  }
+}
+
+message GridTickMessage {
+  int64 tick = 1;
+  EnvironmentMessage environment = 2;
+  CableLoadsDataMessage cable_loads = 3;
+  int64 delta_nanos = 4;
+}

@@ -11,4 +11,5 @@ plugins {
 }
 
 rootProject.name = "GridSim"
+include("protocols")
 include("app")

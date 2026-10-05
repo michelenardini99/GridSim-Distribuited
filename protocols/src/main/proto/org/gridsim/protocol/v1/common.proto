@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package org.gridsim.protocol.v1;
+
+message CableConnectionsMessage {
+  string n1 = 1;
+  string n2 = 2;
+}
+
+message CableMessage {
+  CableConnectionsMessage connections = 1;
+  double max_capacity_kw = 2;
+}
+
+message FlowMessage {
+  oneof flow {
+    double surplus_kwh = 1;
+    double deficit_kwh = 2;
+    bool balanced = 3;
+  }
+}

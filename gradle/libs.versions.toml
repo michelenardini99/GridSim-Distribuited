@@ -16,7 +16,11 @@ cats-effect = "3.5.4"
 fs2 = "3.10.2"
 smartgraph = "2.3.0"
 pekko = "1.7.0"
-
+scalapb = "0.11.17"
+protoc = "3.25.5"
+protobuf-plugin = "0.9.4"
+kafka = "3.8.0"
+pekko-http = "1.1.0"
 [libraries]
 guava = { module = "com.google.guava:guava", version.ref = "guava" }
 junit = { module = "junit:junit", version.ref = "junit" }
@@ -42,3 +46,11 @@ pekko-serialization-jackson = { module = "org.apache.pekko:pekko-serialization-j
 pekko-persistence-typed = { module = "org.apache.pekko:pekko-persistence-typed_3", version.ref = "pekko" }
 pekko-actor-testkit-typed = { module = "org.apache.pekko:pekko-actor-testkit-typed_3", version.ref = "pekko" }
 pekko-persistence-testkit = { module = "org.apache.pekko:pekko-persistence-testkit_3", version.ref = "pekko" }
+scalapb-runtime = { module = "com.thesamet.scalapb:scalapb-runtime_3", version.ref = "scalapb" }
+protobuf-java = { module = "com.google.protobuf:protobuf-java", version.ref = "protoc" }
+kafka-clients = { module = "org.apache.kafka:kafka-clients", version.ref = "kafka" }
+pekko-http = { module = "org.apache.pekko:pekko-http_3", version.ref = "pekko-http" }
+pekko-http-spray-json = { module = "org.apache.pekko:pekko-http-spray-json_3", version.ref = "pekko-http" }
+pekko-http-testkit = { module = "org.apache.pekko:pekko-http-testkit_3", version.ref = "pekko-http" }
+[plugins]
+protobuf = { id = "com.google.protobuf", version.ref = "protobuf-plugin" }
