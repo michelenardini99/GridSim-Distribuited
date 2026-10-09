@@ -58,6 +58,8 @@ class SimulationCoordinator(
   val controlViewModel =
     SimulationControlViewModel(running, onExit, () => renderCurrent())
 
+  controlViewModel.update(running.controller.simulationControllerState)
+
   /** ViewModels managing the statistics. */
   val flowStatisticViewModel = FlowStatisticViewModel()
   val netFlowChartStatisticViewModel = NetFlowChartStatisticViewModel()
@@ -102,6 +104,12 @@ class SimulationCoordinator(
     running.model.grid,
     selectedEntity,
     () => renderCurrentNow()
+  )
+
+  graphViewModel.update(
+    initialState.entityFlows,
+    initialState.cableLoads,
+    running.controller.configuration.delta
   )
 
   running.snapshotSignal.discrete
