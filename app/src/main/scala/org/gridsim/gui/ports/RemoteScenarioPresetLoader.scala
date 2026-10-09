@@ -15,7 +15,10 @@ class RemoteScenarioPresetLoader(apiClient: SimulationApiClient) extends Scenari
       val id = Await.result(futureId, 5.seconds)
       Right(id)
     } catch {
-      case e: Exception => Left(s"Failed to start simulation: ${e.getMessage}")
+      case e: Exception =>
+        val msg = Option(e.getMessage).getOrElse(e.getClass.getSimpleName)
+        val causeMsg = Option(e.getCause).flatMap(c => Option(c.getMessage)).map(c => s" ($c)").getOrElse("")
+        Left(s"Failed to start simulation: $msg$causeMsg")
     }
   }
 }

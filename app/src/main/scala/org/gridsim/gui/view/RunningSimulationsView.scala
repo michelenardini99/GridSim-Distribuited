@@ -61,7 +61,7 @@ class RunningSimulationsView(
               onAction = _ => {
                 apiClient.stopSimulation(sim.id).onComplete {
                   case Success(_) => Platform.runLater(fetchSimulations())
-                  case Failure(e) => Platform.runLater { statusLabel.text = s"Failed to stop: ${e.getMessage}" }
+                  case Failure(e) => Platform.runLater { statusLabel.text = s"Failed to stop: ${Option(e.getMessage).getOrElse(e.getClass.getSimpleName)}" }
                 }
               }
             }
@@ -111,7 +111,7 @@ class RunningSimulationsView(
       case Failure(e) =>
         Platform.runLater {
           loadingIndicator.visible = false
-          statusLabel.text = s"Connection error: ${e.getMessage}"
+          statusLabel.text = s"Connection error: ${Option(e.getMessage).getOrElse(e.getClass.getSimpleName)}"
         }
     }
   }
