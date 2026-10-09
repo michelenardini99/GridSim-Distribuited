@@ -1,4 +1,4 @@
-package org.gridsim.agent
+package org.gridsim.actor
 
 import java.util.UUID
 import org.apache.pekko.http.scaladsl.server.Directives._
@@ -20,7 +20,6 @@ import java.time.LocalDateTime
 
 import scala.concurrent.duration._
 import scala.concurrent.Future
-
 case class CreateSimulationRequest(preset: String)
 case class SimulationResponse(id: String, preset: String)
 case class MessageResponse(message: String)
@@ -89,6 +88,15 @@ class SimulationControlRoutes(
                 val entityRef = entityRefFor(id)
                 entityRef ! Start
                 complete(MessageResponse(s"Start command sent to simulation $id"))
+              }
+            },
+            path("status") {
+              get {
+                val entityRef = entityRefFor(id)
+                val f: Future[String] = entityRef.ask(GetStatus(_))
+                onSuccess(f) { status =>
+                  complete(MessageResponse(status))
+                }
               }
             },
             path("pause") {

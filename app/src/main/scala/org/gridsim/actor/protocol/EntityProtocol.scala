@@ -11,7 +11,7 @@ object EntityProtocol:
 
   final case class Initialize(
     entity: GridEntity,
-    initialState: GridEntityState,
+    initialState: Option[GridEntityState],
     replyTo: ActorRef[Ack.type]
   ) extends EntityCommand
 
@@ -33,7 +33,7 @@ object EntityProtocol:
 
   final case class Initialized(
     entity: GridEntity,
-    initialState: GridEntityState
+    initialState: Option[GridEntityState]
   ) extends EntityEvent
 
   final case class Evolved(

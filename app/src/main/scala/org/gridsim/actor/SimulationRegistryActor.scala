@@ -1,4 +1,4 @@
-package org.gridsim.agent
+package org.gridsim.actor
 
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
 import org.apache.pekko.actor.typed.{ActorRef, Behavior}

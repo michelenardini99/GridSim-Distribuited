@@ -19,7 +19,7 @@ import org.gridsim.core.common.Energy.*
 import org.gridsim.core.common.Flow.*
 import org.gridsim.core.common.Power.*
 import org.gridsim.core.model.*
-import org.gridsim.core.model.network.{Cable, CableConnections, GridGraph}
+import org.gridsim.core.model.network.{Cable, CableConnections, ExternalGrid, GridGraph}
 import org.gridsim.core.model.storage.battery.BatteryState
 import org.gridsim.core.observability.serialization.SimulationDataCodecs
 import org.gridsim.core.simulation.{SimulationConf, SimulationModel, SimulationState}
@@ -99,6 +99,7 @@ class KafkaTelemetryIntegrationSpec
   private val env = Environment(LocalDateTime.of(2026, 10, 2, 12, 0, 0), 0.seconds)
   private val delta = 1.minute
   private val cable = Cable(CableConnections("solar-1", "grid-hub"), maxCapacity = 100.kw)
+  private val cable2 = Cable(CableConnections("grid-hub", "eg"), maxCapacity = 100.kw)
 
   "KafkaEntityTelemetryPublisher and EntityActor" should "publish binary Protobuf telemetry directly to Kafka" in {
     assume(isKafkaReachable(), s"Skipping test: Kafka broker not reachable on $BootstrapServers")
@@ -127,7 +128,7 @@ class KafkaTelemetryIntegrationSpec
     )
 
     // 1. Initialize EntityActor
-    val initReply = kit.runCommand[EntityProtocol.Ack.type](replyTo => EntityProtocol.Initialize(entity, initialSolarState, replyTo))
+    val initReply = kit.runCommand[EntityProtocol.Ack.type](replyTo => EntityProtocol.Initialize(entity, Some(initialSolarState), replyTo))
     initReply.reply shouldBe EntityProtocol.Ack
 
     // 2. Evolve EntityActor at tick 5
@@ -163,7 +164,7 @@ class KafkaTelemetryIntegrationSpec
     val tickTopic = s"grid.ticks.test.${UUID.randomUUID()}"
     val tickPublisher = new KafkaSimulationTickPublisher(producer, tickTopic)
 
-    val gridGraph = GridGraph(nodes = List(DummyEntity("solar-1")), cables = List(cable))
+    val gridGraph = GridGraph(nodes = List(DummyEntity("solar-1"), DummyEntity("grid-hub"), ExternalGrid("eg")), cables = List(cable, cable2))
     val model = SimulationModel(gridGraph)
     val conf = SimulationConf(delta = delta)
 
@@ -204,7 +205,7 @@ class KafkaTelemetryIntegrationSpec
       val (tick, decodedEnv, cableLoads, decodedDelta) = decoded.toOption.get
       tick shouldBe 0L
       decodedEnv shouldBe newEnv
-      cableLoads shouldBe Map(cable -> 12.5.kwh)
+      cableLoads(cable) shouldBe Energy(12.5)
       decodedDelta shouldBe delta
     finally
       consumer.close()

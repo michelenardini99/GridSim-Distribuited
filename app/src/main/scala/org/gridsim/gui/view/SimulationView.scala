@@ -80,3 +80,6 @@ class SimulationView(val coordinator: SimulationCoordinator)
   coordinator.controlViewModel.detailsLayout.onChange { (_, _, layout) =>
     updateLayout(layout)
   }
+
+  // Initial layout setup
+  updateLayout(coordinator.controlViewModel.detailsLayout.value)

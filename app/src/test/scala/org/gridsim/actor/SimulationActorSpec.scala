@@ -15,7 +15,7 @@ import org.gridsim.core.common.Energy.*
 import org.gridsim.core.common.Flow.*
 import org.gridsim.core.common.Power.*
 import org.gridsim.core.model.*
-import org.gridsim.core.model.network.{Cable, CableConnections, GridGraph}
+import org.gridsim.core.model.network.{Cable, CableConnections, ExternalGrid, GridGraph}
 import org.gridsim.core.simulation.{SimulationConf, SimulationModel, SimulationState}
 import org.gridsim.core.solver.PowerFlowSolver
 import org.junit.runner.RunWith
@@ -36,20 +36,24 @@ class SimulationActorSpec
   private case class DummyEntity(id: String) extends GridEntity
 
   private val cable = Cable(CableConnections("n1", "n2"), maxCapacity = 50.kw)
-  private val gridGraph = GridGraph(nodes = List(DummyEntity("n1"), DummyEntity("n2")), cables = List(cable))
+  private val cable2 = Cable(CableConnections("n2", "eg"), maxCapacity = 50.kw)
+  private val gridGraph = GridGraph(nodes = List(DummyEntity("n1"), DummyEntity("n2"), ExternalGrid("eg")), cables = List(cable, cable2))
   private val model = SimulationModel(gridGraph)
   private val env = Environment(LocalDateTime.of(2026, 9, 27, 10, 0, 0), 0.seconds)
   private val conf = SimulationConf(delta = 1.minute)
 
-  private val dummySolver = new PowerFlowSolver:
-    override def solve(entityFlowMap: scala.collection.Map[String, Flow[Energy]]): scala.collection.Map[Cable, Energy] =
-      Map(cable -> 10.0.kwh)
+
 
   private def mockEntityRef(id: String): EntityRef[EntityCommand] =
     TestEntityRef(
       EntityActor.TypeKey,
       id,
-      testKit.spawn(Behaviors.ignore[EntityCommand])
+      testKit.spawn(Behaviors.receiveMessage[EntityCommand] {
+        case org.gridsim.actor.protocol.EntityProtocol.Initialize(_, _, replyTo) =>
+          replyTo ! org.gridsim.actor.protocol.EntityProtocol.Ack
+          Behaviors.same
+        case _ => Behaviors.same
+      })
     )
 
   private def newPersistenceId(): PersistenceId =
@@ -105,7 +109,7 @@ class SimulationActorSpec
     val record = publisher.records.head
     record.tick shouldBe 0L
     record.env shouldBe newEnv
-    record.cableLoads shouldBe Map(cable -> 10.0.kwh)
+    record.cableLoads(cable) shouldBe Energy(5.0)
     record.delta shouldBe conf.delta
   }
 

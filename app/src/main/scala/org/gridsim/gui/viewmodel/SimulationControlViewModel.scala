@@ -129,9 +129,6 @@ class SimulationControlViewModel(
       running.controller.setSpeed(speed)
       selectedSpeed.value = speed
 
-  /** Stops the simulation and triggers the exit callback. */
+  /** Exits the simulation view without stopping the backend simulation. */
   def exit(): Unit =
-    if !stoppedProperty.value then
-      running.controller.stop()
-      stoppedProperty.value = true
     onExitCallback()

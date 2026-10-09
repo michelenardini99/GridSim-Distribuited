@@ -16,6 +16,10 @@ object SimulationProtocol:
     replyTo: ActorRef[Ack.type]
   ) extends SimulationCommand
 
+  final case class EntitiesInitialized(replyTo: ActorRef[Ack.type]) extends SimulationCommand
+  final case class EntitiesInitializationFailed(ex: Throwable, replyTo: ActorRef[Ack.type]) extends SimulationCommand
+  final case class GetStatus(replyTo: ActorRef[String]) extends SimulationCommand
+
   case object Start extends SimulationCommand
   case object Pause extends SimulationCommand
   case object Stop extends SimulationCommand

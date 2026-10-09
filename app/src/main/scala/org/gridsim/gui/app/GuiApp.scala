@@ -1,11 +1,14 @@
 package org.gridsim.gui.app
 
 import org.gridsim.gui.ports.{
-  DslScenarioPresetLoader,
-  DslScenarioPresetRepository
+  RemoteScenarioPresetLoader,
+  DslScenarioPresetRepository,
+  HttpSimulationApiClient
 }
 import scalafx.application.JFXApp3
 import scalafx.scene.Scene
+
+import org.gridsim.gui.model.ClientConfig
 
 /** Main application entry point for the GridSim JavaFX Graphical User
   * Interface.
@@ -18,9 +21,20 @@ object GuiApp extends JFXApp3:
     * dimensions.
     */
   override def start(): Unit =
+    // Parse CLI args
+    val namedArgs = parameters.named
+    val apiEndpoint = namedArgs.getOrElse("api", "http://localhost:8080")
+    val kafkaServers = namedArgs.getOrElse("kafka", "localhost:9092")
+    val config = ClientConfig(apiEndpoint, kafkaServers)
+    
+    import scala.concurrent.ExecutionContext.Implicits.global
+    val apiClient = new HttpSimulationApiClient(config)
+
     val renderer = new SceneBuilder(
+      apiClient = apiClient,
+      config = config,
       scenarioRepo = new DslScenarioPresetRepository,
-      scenarioLoader = new DslScenarioPresetLoader
+      scenarioLoader = new RemoteScenarioPresetLoader(apiClient)
     )
     val router = new AppRouter(
       render = renderer.render

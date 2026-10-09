@@ -1,4 +1,4 @@
-package org.gridsim.agent
+package org.gridsim.actor
 
 import org.apache.pekko.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
 import org.apache.pekko.http.scaladsl.testkit.ScalatestRouteTest
@@ -6,8 +6,8 @@ import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatest.matchers.should.Matchers
 import org.apache.pekko.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import org.gridsim.actor.protocol.SimulationProtocol.{SimulationCommand, Start, Pause, Stop}
-import org.gridsim.agent.SimulationJsonFormats._
-import org.gridsim.agent.SimulationRegistryActor._
+import org.gridsim.actor.SimulationJsonFormats._
+import org.gridsim.actor.SimulationRegistryActor._
 import org.apache.pekko.cluster.sharding.typed.scaladsl.EntityRef
 import org.gridsim.actor.protocol.SimulationProtocol.SimulationCommand
 import org.junit.runner.RunWith
