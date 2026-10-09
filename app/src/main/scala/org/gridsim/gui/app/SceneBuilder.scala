@@ -1,14 +1,14 @@
 package org.gridsim.gui.app
 
-import org.gridsim.gui.app.AppEvent.{ScenarioLoaded, SimulationExited}
-import org.gridsim.gui.app.Route.{ScenarioSelection, Simulation}
+import org.gridsim.gui.app.AppEvent._
+import org.gridsim.gui.app.Route._
 import org.gridsim.gui.viewmodel.{
   ScenarioSelectionViewModel,
   SimulationCoordinator
 }
-import org.gridsim.gui.model.RunningSimulation
+import org.gridsim.gui.model.{RunningSimulation, ClientConfig}
 import org.gridsim.gui.ports.{ScenarioPresetLoader, ScenarioPresetRepository}
-import org.gridsim.gui.view.{ScenarioSelectionView, SimulationView}
+import org.gridsim.gui.view.{ScenarioSelectionView, SimulationView, RunningSimulationsView}
 import scalafx.scene.Parent
 import org.gridsim.gui.viewmodel.SimulationViewLayout
 
@@ -21,8 +21,9 @@ import org.gridsim.gui.viewmodel.SimulationViewLayout
   *   the loader to construct the running simulation context
   */
 class SceneBuilder(
+    config: ClientConfig,
     scenarioRepo: ScenarioPresetRepository,
-    scenarioLoader: ScenarioPresetLoader[RunningSimulation]
+    scenarioLoader: ScenarioPresetLoader[String]
 ):
   /** Renders the View component matching the current navigation Route.
     *
@@ -35,22 +36,27 @@ class SceneBuilder(
     */
   def render(route: Route, dispatch: AppEvent => Unit): Parent =
     route match
+      case RunningSimulations =>
+        new RunningSimulationsView(
+          config = config,
+          onNewSimulation = () => dispatch(StartNewSimulationClicked),
+          onSimulationSelected = id => dispatch(SimulationSelected(id))
+        )
       case ScenarioSelection =>
         ScenarioSelectionView(
           viewModel = ScenarioSelectionViewModel(
             scenarioRepo = scenarioRepo,
             loader = scenarioLoader
           ),
-          onScenarioLoaded = { running =>
-            dispatch(ScenarioLoaded(running))
+          onScenarioLoaded = { _ =>
+            dispatch(SimulationCreated)
           }
         )
-      case Simulation(running) =>
-        val view = SimulationView(
-          coordinator = SimulationCoordinator(
-            running = running,
-            onExit = () => dispatch(SimulationExited)
-          )
-        )
-        view.updateLayout(SimulationViewLayout.Tabs)
-        view
+      case Simulation(simId) =>
+        // Temporarily handling string ID, we'll need to rewrite SimulationCoordinator for remote
+        // For now just passing a dummy or we need to refactor Simulation Coordinator later
+        // as the user requested only the two windows for now.
+        new scalafx.scene.layout.VBox {
+           children = Seq(new scalafx.scene.control.Label(s"Watching simulation: $simId"))
+        }
+
