@@ -90,10 +90,10 @@ class EntityActorSpec
     val handler = RecordingHandler(initialState, Flow.Balanced)
     val kit = kitFor(handler)
 
-    val result = kit.runCommand[Ack.type](replyTo => Initialize(entity, initialState, replyTo))
+    val result = kit.runCommand[Ack.type](replyTo => Initialize(entity, Some(initialState), replyTo))
 
     result.reply shouldBe Ack
-    result.event shouldBe Initialized(entity, initialState)
+    result.event shouldBe Initialized(entity, Some(initialState))
     result.state shouldBe State(Some(entity), Some(initialState))
   }
 
@@ -103,12 +103,12 @@ class EntityActorSpec
     val handler = RecordingHandler(initialState, Flow.Balanced)
     val kit = kitFor(handler)
 
-    kit.runCommand[Ack.type](replyTo => Initialize(entity, initialState, replyTo))
+    kit.runCommand[Ack.type](replyTo => Initialize(entity, Some(initialState), replyTo))
 
     val otherEntity = TestEntity("other")
     val otherState = TestEntityState("other", value = 99)
     val probe = testKit.createTestProbe[Ack.type]()
-    val result = kit.runCommand(Initialize(otherEntity, otherState, probe.ref))
+    val result = kit.runCommand(Initialize(otherEntity, Some(otherState), probe.ref))
 
     result.hasNoEvents shouldBe true
     probe.expectNoMessage()
@@ -123,7 +123,7 @@ class EntityActorSpec
     val handler = RecordingHandler(evolvedState, Surplus(2.kwh))
     val kit = kitFor(handler)
 
-    kit.runCommand[Ack.type](replyTo => Initialize(entity, initialState, replyTo))
+    kit.runCommand[Ack.type](replyTo => Initialize(entity, Some(initialState), replyTo))
     val result = kit.runCommand[EntityEvolved](replyTo => Evolve(testEnvironment(), 1.hour, replyTo))
 
     result.reply shouldBe EntityEvolved(entity.id, Surplus(2.kwh))
@@ -139,7 +139,7 @@ class EntityActorSpec
     val delta = 30.minutes
     val kit = kitFor(handler)
 
-    kit.runCommand[Ack.type](replyTo => Initialize(entity, initialState, replyTo))
+    kit.runCommand[Ack.type](replyTo => Initialize(entity, Some(initialState), replyTo))
     kit.runCommand[EntityEvolved](replyTo => Evolve(env, delta, replyTo))
 
     handler.lastRequest shouldBe Some(EvolutionRequest(entity, initialState, env, delta))
@@ -153,7 +153,7 @@ class EntityActorSpec
     val handler = SequenceHandler(Seq(afterFirst, afterSecond))
     val kit = kitFor(handler)
 
-    kit.runCommand[Ack.type](replyTo => Initialize(entity, initialState, replyTo))
+    kit.runCommand[Ack.type](replyTo => Initialize(entity, Some(initialState), replyTo))
 
     val first = kit.runCommand[EntityEvolved](replyTo => Evolve(testEnvironment(), 1.hour, replyTo, 0L))
     first.reply shouldBe EntityEvolved(entity.id, Flow.Balanced)
@@ -170,7 +170,7 @@ class EntityActorSpec
     val handler = RecordingHandler(initialState, Deficit(1.5.kwh))
     val kit = kitFor(handler)
 
-    kit.runCommand[Ack.type](replyTo => Initialize(entity, initialState, replyTo))
+    kit.runCommand[Ack.type](replyTo => Initialize(entity, Some(initialState), replyTo))
     val result = kit.runCommand[EntityEvolved](replyTo => Evolve(testEnvironment(), 1.hour, replyTo))
 
     result.reply shouldBe EntityEvolved(entity.id, Deficit(1.5.kwh))
@@ -182,7 +182,7 @@ class EntityActorSpec
     val handler = RecordingHandler(initialState, Flow.Balanced)
     val kit = kitFor(handler)
 
-    kit.runCommand[Ack.type](replyTo => Initialize(entity, initialState, replyTo))
+    kit.runCommand[Ack.type](replyTo => Initialize(entity, Some(initialState), replyTo))
     val result = kit.runCommand[EntityEvolved](replyTo => Evolve(testEnvironment(), 1.hour, replyTo))
 
     result.reply shouldBe EntityEvolved(entity.id, Flow.Balanced)
@@ -196,7 +196,7 @@ class EntityActorSpec
     val publisher = new org.gridsim.actor.telemetry.TelemetryPublisher.RecordingEntityTelemetryPublisher()
     val kit = kitFor(handler, publisher = publisher)
 
-    kit.runCommand[Ack.type](replyTo => Initialize(entity, initialState, replyTo))
+    kit.runCommand[Ack.type](replyTo => Initialize(entity, Some(initialState), replyTo))
     kit.runCommand[EntityEvolved](replyTo => Evolve(testEnvironment(), 15.minutes, replyTo, 42L))
 
     publisher.records should have size 1
@@ -215,7 +215,7 @@ class EntityActorSpec
     val handler = RecordingHandler(afterEvolve, Flow.Balanced)
     val kit = kitFor(handler)
 
-    kit.runCommand[Ack.type](replyTo => Initialize(entity, initialState, replyTo))
+    kit.runCommand[Ack.type](replyTo => Initialize(entity, Some(initialState), replyTo))
     kit.runCommand[EntityEvolved](replyTo => Evolve(testEnvironment(), 1.hour, replyTo))
 
     val restarted = kit.restart()
@@ -232,7 +232,7 @@ class EntityActorSpec
     val persistenceId = newPersistenceId()
     val kit = kitFor(handler, persistenceId)
 
-    kit.runCommand[Ack.type](replyTo => Initialize(entity, initialState, replyTo))
+    kit.runCommand[Ack.type](replyTo => Initialize(entity, Some(initialState), replyTo))
     evolvedStates.indices.foreach { _ =>
       kit.runCommand[EntityEvolved](replyTo => Evolve(testEnvironment(), 1.hour, replyTo))
     }

@@ -35,19 +35,26 @@ object EntityActor:
             Effect
               .persist(Initialized(entity, initialState))
               .thenRun(_ => replyTo ! Ack)
-          case (State(Some(entity), Some(dyn)), Evolve(env, delta, replyTo, tick)) =>
-            val (newState, flow) = handlerFor(entity).evolve(EvolutionRequest(entity, dyn, env, delta))
-            Effect
-              .persist(Evolved(newState, flow))
-              .thenRun { _ =>
-                publisher.publish(entity.id, tick, newState, flow)
-                replyTo ! EntityEvolved(entity.id, flow)
-              }
+          case (State(Some(entity), dyn), Evolve(env, delta, replyTo, tick)) =>
+            dyn match {
+              case Some(state) =>
+                val (newState, flow) = handlerFor(entity).evolve(EvolutionRequest(entity, state, env, delta))
+                Effect
+                  .persist(Evolved(newState, flow))
+                  .thenRun { _ =>
+                    publisher.publish(entity.id, tick, newState, flow)
+                    replyTo ! EntityEvolved(entity.id, flow)
+                  }
+              case None =>
+                // If there's no state, we can't evolve, just return empty flow
+                replyTo ! EntityEvolved(entity.id, Flow.Surplus(Energy.Zero))
+                Effect.none
+            }
           case _ => Effect.unhandled
       },
       eventHandler = (state, event) => {
        event match
-          case Initialized(entity, initialState) => State(Some(entity), Some(initialState))
+          case Initialized(entity, initialState) => State(Some(entity), initialState)
           case Evolved(newState, _) => state.copy(dynamic = Some(newState))
       }
     )

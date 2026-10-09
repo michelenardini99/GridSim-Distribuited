@@ -128,7 +128,7 @@ class KafkaTelemetryIntegrationSpec
     )
 
     // 1. Initialize EntityActor
-    val initReply = kit.runCommand[EntityProtocol.Ack.type](replyTo => EntityProtocol.Initialize(entity, initialSolarState, replyTo))
+    val initReply = kit.runCommand[EntityProtocol.Ack.type](replyTo => EntityProtocol.Initialize(entity, Some(initialSolarState), replyTo))
     initReply.reply shouldBe EntityProtocol.Ack
 
     // 2. Evolve EntityActor at tick 5

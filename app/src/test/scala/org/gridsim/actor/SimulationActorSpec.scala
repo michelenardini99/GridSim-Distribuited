@@ -48,7 +48,12 @@ class SimulationActorSpec
     TestEntityRef(
       EntityActor.TypeKey,
       id,
-      testKit.spawn(Behaviors.ignore[EntityCommand])
+      testKit.spawn(Behaviors.receiveMessage[EntityCommand] {
+        case org.gridsim.actor.protocol.EntityProtocol.Initialize(_, _, replyTo) =>
+          replyTo ! org.gridsim.actor.protocol.EntityProtocol.Ack
+          Behaviors.same
+        case _ => Behaviors.same
+      })
     )
 
   private def newPersistenceId(): PersistenceId =

@@ -12,16 +12,15 @@ import org.gridsim.actor.protocol.EntityProtocol.{EntityCommand, EntityEvolved, 
 import org.gridsim.actor.protocol.SimulationProtocol.{Ack, EntitiesEvolved, Initialize, Initialized, Pause, Paused, SimulationCommand, SimulationEvent, Start, Started, Stopped, TickAdvanced, TickFailed, TickTimer}
 import org.gridsim.actor.telemetry.{SimulationTickPublisher, TelemetryPublisher}
 import org.gridsim.core.common.Power
-import org.gridsim.core.model.Environment
+import org.gridsim.core.model.{Environment, GridEntityState}
 import org.gridsim.core.simulation.{SimulationConf, SimulationModel, SimulationState}
 import org.gridsim.core.solver.PowerFlowSolver
 
 import scala.concurrent.{ExecutionContext, Future}
-import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.duration.*
 import scala.util.{Failure, Success}
 
 object SimulationActor:
-
   enum Status:
     case IdleStatus, RunningStatus, PausedStatus, StoppedStatus
 
@@ -50,7 +49,26 @@ object SimulationActor:
           case (State(None, _, _, _, _), Initialize(model, initState, conf, replyTo)) =>
             Effect
               .persist(Initialized(model, initState.environment, conf))
-              .thenRun(_ => replyTo ! Ack)
+              .thenRun { _ =>
+                implicit val timeout: Timeout = Timeout(10.seconds)
+                implicit val scheduler: Scheduler = context.system.scheduler
+                val futures = model.grid.nodes.map { entity =>
+                  val entityState = initState.entityStates.get(entity.id)
+                  entityRefFor(entity.id).ask(ref => org.gridsim.actor.protocol.EntityProtocol.Initialize(entity, entityState, ref))
+                }
+                context.pipeToSelf(Future.sequence(futures)) {
+                  case Success(_) => org.gridsim.actor.protocol.SimulationProtocol.EntitiesInitialized(replyTo)
+                  case Failure(ex) => org.gridsim.actor.protocol.SimulationProtocol.EntitiesInitializationFailed(ex, replyTo)
+                }
+              }
+
+          case (State(Some(_), IdleStatus, _, _, _), org.gridsim.actor.protocol.SimulationProtocol.EntitiesInitialized(replyTo)) =>
+            Effect.none.thenRun(_ => replyTo ! Ack)
+
+          case (State(Some(_), IdleStatus, _, _, _), org.gridsim.actor.protocol.SimulationProtocol.EntitiesInitializationFailed(ex, replyTo)) =>
+            context.log.error("Failed to initialize entity actors", ex)
+            Effect.none // Maybe we should fail the initialization, but for now just log and do nothing (replyTo will timeout)
+
 
           case (State(Some(_), IdleStatus | PausedStatus, _, _, _), Start) =>
             Effect
