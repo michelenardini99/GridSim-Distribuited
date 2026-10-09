@@ -32,6 +32,7 @@ object GuiApp extends JFXApp3:
 
     val renderer = new SceneBuilder(
       apiClient = apiClient,
+      config = config,
       scenarioRepo = new DslScenarioPresetRepository,
       scenarioLoader = new RemoteScenarioPresetLoader(apiClient)
     )

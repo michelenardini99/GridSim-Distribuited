@@ -12,7 +12,7 @@ import scala.util.{Success, Failure}
 class RunningSimulationsView(
     apiClient: SimulationApiClient,
     onNewSimulation: () => Unit,
-    onSimulationSelected: String => Unit
+    onSimulationSelected: (String, String) => Unit
 ) extends VBox {
 
   spacing = 20
@@ -53,7 +53,7 @@ class RunningSimulationsView(
             
             val watchButton = new Button("Watch") {
               styleClass += "secondary-button"
-              onAction = _ => onSimulationSelected(sim.id)
+              onAction = _ => onSimulationSelected(sim.id, sim.preset)
             }
             
             val stopButton = new Button("Stop") {

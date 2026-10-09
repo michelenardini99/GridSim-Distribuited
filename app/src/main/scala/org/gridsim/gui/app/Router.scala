@@ -13,7 +13,7 @@ enum Route:
   /** The scenario list selection view (to create a new simulation). */
   case ScenarioSelection
   /** The active running simulation dashboard view. */
-  case Simulation(id: String)
+  case Simulation(id: String, preset: String)
 
 /**
  * Representation of the application navigation state.
@@ -29,7 +29,7 @@ enum AppEvent:
   /** Emitted when the user wants to start a new simulation. */
   case StartNewSimulationClicked
   /** Emitted when the user selects an existing simulation to watch. */
-  case SimulationSelected(id: String)
+  case SimulationSelected(id: String, preset: String)
   /** Emitted when a new simulation is successfully created (scenario loaded remotely). */
   case SimulationCreated
   /** Emitted when the user exits the simulation or scenario selection and wants to go back to the running simulations list. */
@@ -65,8 +65,8 @@ class AppRouter(
       case StartNewSimulationClicked =>
         state = state.copy(route = ScenarioSelection)
         rootPane.center = render(state.route, dispatch)
-      case SimulationSelected(id) =>
-        state = state.copy(route = Simulation(id))
+      case SimulationSelected(id, preset) =>
+        state = state.copy(route = Simulation(id, preset))
         rootPane.center = render(state.route, dispatch)
       case SimulationCreated | NavigationBack =>
         state = state.copy(route = RunningSimulations)

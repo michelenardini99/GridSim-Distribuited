@@ -6,11 +6,14 @@ import org.gridsim.gui.viewmodel.{
   ScenarioSelectionViewModel,
   SimulationCoordinator
 }
-import org.gridsim.gui.model.RunningSimulation
+import org.gridsim.gui.model.{RunningSimulation, ClientConfig}
 import org.gridsim.gui.ports.{ScenarioPresetLoader, ScenarioPresetRepository, SimulationApiClient}
 import org.gridsim.gui.view.{ScenarioSelectionView, SimulationView, RunningSimulationsView}
 import scalafx.scene.Parent
 import org.gridsim.gui.viewmodel.SimulationViewLayout
+import org.gridsim.dsl.scenarios.GridScenarioCatalog
+import org.gridsim.gui.ports.RemoteSimulationBuilder
+import scala.concurrent.duration.DurationInt
 
 /** Factory class responsible for instantiating the UI View components
   * corresponding to the active route.
@@ -22,6 +25,7 @@ import org.gridsim.gui.viewmodel.SimulationViewLayout
   */
 class SceneBuilder(
     apiClient: SimulationApiClient,
+    config: ClientConfig,
     scenarioRepo: ScenarioPresetRepository,
     scenarioLoader: ScenarioPresetLoader[String]
 ):
@@ -40,7 +44,7 @@ class SceneBuilder(
         new RunningSimulationsView(
           apiClient = apiClient,
           onNewSimulation = () => dispatch(StartNewSimulationClicked),
-          onSimulationSelected = id => dispatch(SimulationSelected(id))
+          onSimulationSelected = (id, preset) => dispatch(SimulationSelected(id, preset))
         )
       case ScenarioSelection =>
         ScenarioSelectionView(
@@ -52,11 +56,11 @@ class SceneBuilder(
             dispatch(SimulationCreated)
           }
         )
-      case Simulation(simId) =>
-        // Temporarily handling string ID, we'll need to rewrite SimulationCoordinator for remote
-        // For now just passing a dummy or we need to refactor Simulation Coordinator later
-        // as the user requested only the two windows for now.
-        new scalafx.scene.layout.VBox {
-           children = Seq(new scalafx.scene.control.Label(s"Watching simulation: $simId"))
-        }
+      case Simulation(simId, preset) =>
+        val scenario = GridScenarioCatalog.byId(preset).getOrElse(throw new IllegalArgumentException(s"Unknown preset: $preset"))
+        val builder = scenario.build(1.minute)
+        val (model, state) = builder.build().fold(errs => throw new IllegalArgumentException(errs.toString), identity)
+        val running = RemoteSimulationBuilder.build(simId, preset, model, apiClient, config)
+        val coordinator = new SimulationCoordinator(running, () => dispatch(NavigationBack))
+        new SimulationView(coordinator)
 
