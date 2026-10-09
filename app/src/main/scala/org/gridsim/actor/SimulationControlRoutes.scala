@@ -90,6 +90,15 @@ class SimulationControlRoutes(
                 complete(MessageResponse(s"Start command sent to simulation $id"))
               }
             },
+            path("status") {
+              get {
+                val entityRef = entityRefFor(id)
+                val f: Future[String] = entityRef.ask(GetStatus(_))
+                onSuccess(f) { status =>
+                  complete(MessageResponse(status))
+                }
+              }
+            },
             path("pause") {
               post {
                 val entityRef = entityRefFor(id)

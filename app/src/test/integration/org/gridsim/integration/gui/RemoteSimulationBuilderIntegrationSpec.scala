@@ -73,6 +73,7 @@ class RemoteSimulationBuilderIntegrationSpec
       override def startSimulation(id: String): Future[Unit] = Future.unit
       override def pauseSimulation(id: String): Future[Unit] = Future.unit
       override def stopSimulation(id: String): Future[Unit] = Future.unit
+      override def getSimulationStatus(id: String): Future[String] = Future.successful("RunningStatus")
     }
 
     // 1. Initialize RemoteSimulationBuilder

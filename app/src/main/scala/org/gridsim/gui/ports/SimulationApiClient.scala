@@ -31,6 +31,7 @@ trait SimulationApiClient:
   def startSimulation(id: String): Future[Unit]
   def pauseSimulation(id: String): Future[Unit]
   def stopSimulation(id: String): Future[Unit]
+  def getSimulationStatus(id: String): Future[String]
 
 /**
  * HTTP implementation of the SimulationApiClient using java.net.http
@@ -76,6 +77,20 @@ class HttpSimulationApiClient(config: ClientConfig)(implicit ec: ExecutionContex
   override def startSimulation(id: String): Future[Unit] = sendCommand(id, "start")
 
   override def pauseSimulation(id: String): Future[Unit] = sendCommand(id, "pause")
+
+  override def getSimulationStatus(id: String): Future[String] = Future {
+    val req = HttpRequest.newBuilder()
+      .uri(URI.create(s"${config.apiEndpoint}/api/simulations/$id/status"))
+      .GET()
+      .build()
+
+    val response = client.send(req, HttpResponse.BodyHandlers.ofString())
+    if (response.statusCode() == 200) {
+      response.body().parseJson.convertTo[MessageResponse].message
+    } else {
+      throw new RuntimeException(s"API returned status ${response.statusCode()}: ${response.body()}")
+    }
+  }
 
   override def stopSimulation(id: String): Future[Unit] = Future {
     val req = HttpRequest.newBuilder()

@@ -118,6 +118,10 @@ object SimulationActor:
               .none
               .thenRun(_ => context.scheduleOnce(tickTimeout, context.self, TickTimer))
 
+          case (State(_, status, _, _, _), org.gridsim.actor.protocol.SimulationProtocol.GetStatus(replyTo)) =>
+            replyTo ! status.toString
+            Effect.none
+
           case _ => Effect.unhandled
         ,
         eventHandler = (state, event) => event match

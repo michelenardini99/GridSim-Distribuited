@@ -71,7 +71,16 @@ object RemoteSimulationBuilder {
     val initialState = SimulationState(env, Map.empty, Map.empty, Map.empty)
     
     val stateRef = new AtomicReference[SimulationState](initialState)
-    val statusRef = new AtomicReference[SimulationControllerState](PAUSED)
+    
+    // Fetch current simulation status from API
+    val initialStatus = try {
+      val statusStr = scala.concurrent.Await.result(apiClient.getSimulationStatus(simId), 5.seconds)
+      if (statusStr == "RunningStatus") RUNNING else PAUSED
+    } catch {
+      case e: Exception => PAUSED
+    }
+    
+    val statusRef = new AtomicReference[SimulationControllerState](initialStatus)
     val confRef = new AtomicReference[SimulationConf](SimulationConf(1.second, Normal))
 
     val controller = new RemoteSimulationController(apiClient, simId, stateRef, statusRef, confRef)
