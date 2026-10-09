@@ -33,19 +33,21 @@ object SimulationProtocol:
     newEnv: Environment,
     results: Iterable[EntityEvolved]
   ) extends SimulationCommand
-  
+
   final case class TickFailed(cause: Throwable) extends SimulationCommand
-  
+
   sealed trait SimulationEvent extends Serializable
-  
+
   final case class Initialized(
     model: SimulationModel,
     environment: Environment,
     conf: SimulationConf
   ) extends SimulationEvent
-  
+
   case object Started extends SimulationEvent
   case object Paused extends SimulationEvent
   case object Stopped extends SimulationEvent
-  
+
   final case class TickAdvanced(env: Environment, tick: Long = 0L) extends SimulationEvent
+
+  final case class SpeedUpdated(speed: SimulationSpeed) extends SimulationEvent

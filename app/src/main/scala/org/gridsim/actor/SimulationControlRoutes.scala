@@ -1,28 +1,29 @@
 package org.gridsim.actor
 
 import java.util.UUID
-import org.apache.pekko.http.scaladsl.server.Directives._
+import org.apache.pekko.http.scaladsl.server.Directives.*
 import org.apache.pekko.http.scaladsl.server.Route
-import org.apache.pekko.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
-import spray.json.DefaultJsonProtocol._
+import org.apache.pekko.http.scaladsl.marshallers.sprayjson.SprayJsonSupport.*
+import spray.json.DefaultJsonProtocol.*
 import spray.json.RootJsonFormat
 import org.apache.pekko.actor.typed.ActorSystem
-import org.apache.pekko.actor.typed.scaladsl.AskPattern._
+import org.apache.pekko.actor.typed.scaladsl.AskPattern.*
 import org.apache.pekko.util.Timeout
 import org.apache.pekko.cluster.sharding.typed.scaladsl.EntityRef
-import org.gridsim.actor.protocol.SimulationProtocol._
+import org.gridsim.actor.protocol.SimulationProtocol.*
 import org.gridsim.actor.SimulationActor
 import org.apache.pekko.actor.typed.ActorRef
 import org.gridsim.dsl.scenarios.GridScenarioCatalog
-import org.gridsim.core.simulation.SimulationConf
+import org.gridsim.core.simulation.{SimulationConf, SimulationSpeed}
 import org.gridsim.core.model.Environment
-import java.time.LocalDateTime
 
-import scala.concurrent.duration._
+import java.time.LocalDateTime
+import scala.concurrent.duration.*
 import scala.concurrent.Future
 case class CreateSimulationRequest(preset: String)
 case class SimulationResponse(id: String, preset: String)
 case class MessageResponse(message: String)
+case class UpdateSpeedRequest(speed: String)
 
 object SimulationJsonFormats:
   implicit val createFormat: RootJsonFormat[CreateSimulationRequest] = jsonFormat1(CreateSimulationRequest.apply)
@@ -30,6 +31,7 @@ object SimulationJsonFormats:
   implicit val msgResponseFormat: RootJsonFormat[MessageResponse] = jsonFormat1(MessageResponse.apply)
   implicit val infoFormat: RootJsonFormat[SimulationRegistryActor.SimulationInfo] = jsonFormat2(SimulationRegistryActor.SimulationInfo.apply)
   implicit val listFormat: RootJsonFormat[SimulationRegistryActor.SimulationsList] = jsonFormat1(SimulationRegistryActor.SimulationsList.apply)
+  implicit val speedReqFormat: RootJsonFormat[UpdateSpeedRequest] = jsonFormat1(UpdateSpeedRequest.apply)
 
 class SimulationControlRoutes(
     registry: ActorRef[SimulationRegistryActor.Command],
@@ -104,6 +106,19 @@ class SimulationControlRoutes(
                 val entityRef = entityRefFor(id)
                 entityRef ! Pause
                 complete(MessageResponse(s"Pause command sent to simulation $id"))
+              }
+            },
+            path("speed") {
+              post {
+                entity(as[UpdateSpeedRequest]) { req =>
+                  scala.util.Try(SimulationSpeed.valueOf(req.speed)).toOption match {
+                    case Some(speed) =>
+                      entityRefFor(id) ! UpdateSpeed(speed)
+                      complete(MessageResponse(s"Speed update sent to simulation $id"))
+                    case None =>
+                      complete(400 -> MessageResponse(s"Unknown speed '${req.speed}'"))
+                  }
+                }
               }
             },
             pathEnd {

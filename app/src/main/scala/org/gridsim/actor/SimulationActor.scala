@@ -11,11 +11,11 @@ import org.apache.pekko.persistence.typed.RecoveryCompleted
 import org.apache.pekko.util.Timeout
 import org.gridsim.actor.SimulationActor.Status.{IdleStatus, PausedStatus, RunningStatus, StoppedStatus}
 import org.gridsim.actor.protocol.EntityProtocol.{EntityCommand, EntityEvolved, Evolve}
-import org.gridsim.actor.protocol.SimulationProtocol.{Ack, EntitiesEvolved, Initialize, Initialized, Pause, Paused, SimulationCommand, SimulationEvent, Start, Started, Stopped, TickAdvanced, TickFailed, TickTimer}
+import org.gridsim.actor.protocol.SimulationProtocol.{Ack, EntitiesEvolved, Initialize, Initialized, Pause, Paused, SimulationCommand, SimulationEvent, SpeedUpdated, Start, Started, Stopped, TickAdvanced, TickFailed, TickTimer, UpdateSpeed}
 import org.gridsim.actor.telemetry.{SimulationTickPublisher, TelemetryPublisher}
 import org.gridsim.core.common.Power
 import org.gridsim.core.model.{Environment, GridEntityState}
-import org.gridsim.core.simulation.{SimulationConf, SimulationModel, SimulationState}
+import org.gridsim.core.simulation.{SimulationConf, SimulationModel, SimulationState, interval}
 import org.gridsim.core.solver.PowerFlowSolver
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -111,18 +111,21 @@ object SimulationActor:
                 // Publish global tick, environment, and cable load distribution to Kafka
                 publisher.publish(currentTick, newEnv, cableLoads, conf.delta)
 
-                context.scheduleOnce(tickTimeout, context.self, TickTimer)
+                context.scheduleOnce(conf.speed.interval, context.self, TickTimer)
               }
 
-          case (_, TickFailed(ex)) =>
+          case (State(_, _, _, Some(conf), _), TickFailed(ex)) =>
             context.log.warn("Tick failed, retrying", ex)
             Effect
               .none
-              .thenRun(_ => context.scheduleOnce(tickTimeout, context.self, TickTimer))
+              .thenRun(_ => context.scheduleOnce(conf.speed.interval, context.self, TickTimer))
 
           case (State(_, status, _, _, _), org.gridsim.actor.protocol.SimulationProtocol.GetStatus(replyTo)) =>
             replyTo ! status.toString
             Effect.none
+
+          case (State(Some(_), _, _, Some(conf), _), UpdateSpeed(speed)) =>
+            Effect.persist(SpeedUpdated(speed))
 
           case _ => Effect.unhandled
         ,
@@ -132,6 +135,7 @@ object SimulationActor:
           case Paused                       => state.copy(status = PausedStatus)
           case Stopped                      => state.copy(status = StoppedStatus)
           case TickAdvanced(env, tick)      => state.copy(env = Some(env), tick = tick)
+          case SpeedUpdated(speed)          => state.copy(conf = state.conf.map(_.copy(speed = speed)))
       )
         .receiveSignal {
           case (State(Some(_), RunningStatus, _, _, _), RecoveryCompleted) =>

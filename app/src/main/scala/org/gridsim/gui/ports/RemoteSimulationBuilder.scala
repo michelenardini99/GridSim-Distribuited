@@ -55,7 +55,10 @@ object RemoteSimulationBuilder {
     override def resume(): Unit = start()
 
     override def setTick(delta: FiniteDuration): Unit = ()
-    override def setSpeed(speed: SimulationSpeed): Unit = ()
+    override def setSpeed(speed: SimulationSpeed): Unit = {
+      apiClient.setSimulationSpeed(simId, speed)
+      confRef.updateAndGet(_.copy(speed = speed))
+    }
     override def stepOnce(): SimulationState = currentState
   }
 
@@ -161,7 +164,7 @@ object RemoteSimulationBuilder {
                   val snap: SimulationData.SimulationSnapshot = SimulationData.SimulationSnapshot(env, entityStates, entityFlows, cableLoads, delta)
 
                   stateRef.set(SimulationState(env, entityStates, entityFlows, cableLoads))
-                  confRef.set(SimulationConf(delta, Normal))
+                  confRef.updateAndGet(_.copy(delta = delta))
 
                   currentStatsState = StatisticsRegistry.engine.step(currentStatsState, snap)
 
