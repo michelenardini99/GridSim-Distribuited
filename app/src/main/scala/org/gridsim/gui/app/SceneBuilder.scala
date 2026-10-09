@@ -6,8 +6,8 @@ import org.gridsim.gui.viewmodel.{
   ScenarioSelectionViewModel,
   SimulationCoordinator
 }
-import org.gridsim.gui.model.{RunningSimulation, ClientConfig}
-import org.gridsim.gui.ports.{ScenarioPresetLoader, ScenarioPresetRepository}
+import org.gridsim.gui.model.RunningSimulation
+import org.gridsim.gui.ports.{ScenarioPresetLoader, ScenarioPresetRepository, SimulationApiClient}
 import org.gridsim.gui.view.{ScenarioSelectionView, SimulationView, RunningSimulationsView}
 import scalafx.scene.Parent
 import org.gridsim.gui.viewmodel.SimulationViewLayout
@@ -21,7 +21,7 @@ import org.gridsim.gui.viewmodel.SimulationViewLayout
   *   the loader to construct the running simulation context
   */
 class SceneBuilder(
-    config: ClientConfig,
+    apiClient: SimulationApiClient,
     scenarioRepo: ScenarioPresetRepository,
     scenarioLoader: ScenarioPresetLoader[String]
 ):
@@ -38,7 +38,7 @@ class SceneBuilder(
     route match
       case RunningSimulations =>
         new RunningSimulationsView(
-          config = config,
+          apiClient = apiClient,
           onNewSimulation = () => dispatch(StartNewSimulationClicked),
           onSimulationSelected = id => dispatch(SimulationSelected(id))
         )
