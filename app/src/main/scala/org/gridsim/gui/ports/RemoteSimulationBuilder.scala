@@ -7,7 +7,7 @@ import org.apache.kafka.clients.consumer.{ConsumerConfig, KafkaConsumer}
 import org.apache.kafka.common.serialization.{ByteArrayDeserializer, StringDeserializer}
 import org.gridsim.core.common.{Energy, Flow}
 import org.gridsim.core.model.{Environment, GridEntityState}
-import org.gridsim.core.model.network.Cable
+import org.gridsim.core.model.network.{Cable, ExternalGrid}
 import org.gridsim.core.observability.SimulationData
 import org.gridsim.core.observability.SimulationData.SimulationSnapshot
 import org.gridsim.core.observability.serialization.SimulationDataCodecs
@@ -69,9 +69,9 @@ object RemoteSimulationBuilder {
     // Initial empty state
     val env = Environment(LocalDateTime.now(), 0.seconds)
     val initialState = SimulationState(env, Map.empty, Map.empty, Map.empty)
-    
+
     val stateRef = new AtomicReference[SimulationState](initialState)
-    
+
     // Fetch current simulation status from API
     val initialStatus = try {
       val statusStr = scala.concurrent.Await.result(apiClient.getSimulationStatus(simId), 5.seconds)
@@ -79,7 +79,7 @@ object RemoteSimulationBuilder {
     } catch {
       case e: Exception => PAUSED
     }
-    
+
     val statusRef = new AtomicReference[SimulationControllerState](initialStatus)
     val confRef = new AtomicReference[SimulationConf](SimulationConf(1.second, Normal))
 
@@ -102,60 +102,81 @@ object RemoteSimulationBuilder {
       props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, classOf[StringDeserializer].getName)
       props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, classOf[ByteArrayDeserializer].getName)
       props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
-      
+
       val consumer = new KafkaConsumer[String, Array[Byte]](props)
       val entitiesTopic = s"grid.entities.$simId"
       val ticksTopic = s"grid.ticks.$simId"
       consumer.subscribe(java.util.Arrays.asList(entitiesTopic, ticksTopic))
 
+      val entityQueues = scala.collection.mutable.Map.empty[String, scala.collection.mutable.Queue[(Long, GridEntityState, Flow[Energy])]]
+      val knownEntityIds: Set[String] = model.grid.nodes.filterNot(_.isInstanceOf[ExternalGrid]).map(_.id).toSet
       var entityStates = Map.empty[String, GridEntityState]
       var entityFlows = Map.empty[String, Flow[Energy]]
+      var entityAppliedTick = Map.empty[String, Long]
+      val pendingTicks = scala.collection.mutable.TreeMap.empty[Long, (Environment, Map[Cable, Energy], FiniteDuration)]
       var currentStatsState = StatisticsRegistry.engine.initial
+
+      val publishInterval = 100.millis
+      var lastPublishAt = System.nanoTime() - publishInterval.toNanos
 
       try {
         while (!Thread.currentThread().isInterrupted) {
           val records = consumer.poll(java.time.Duration.ofMillis(100))
-          var updatedTick = false
-          var latestEnv: Option[Environment] = None
-          var latestCableLoads: Option[Map[Cable, Energy]] = None
-          var latestDelta: Option[FiniteDuration] = None
-          
+
           records.asScala.foreach { record =>
             if (record.topic() == entitiesTopic) {
               SimulationDataCodecs.telemetryFromBinary(record.value()) match {
-                case Right((eid, _, state, flow)) =>
-                  entityStates = entityStates + (eid -> state)
-                  entityFlows = entityFlows + (eid -> flow)
+                case Right((eid, tick, state, flow)) =>
+                  entityQueues.getOrElseUpdate(eid, scala.collection.mutable.Queue.empty).enqueue((tick, state, flow))
                 case Left(err) => println(s"Failed to decode entity telemetry: $err")
               }
             } else if (record.topic() == ticksTopic) {
               SimulationDataCodecs.gridTickFromBinary(record.value()) match {
                 case Right((tick, env, cableLoads, delta)) =>
-                  latestEnv = Some(env)
-                  latestCableLoads = Some(cableLoads)
-                  latestDelta = Some(delta)
-                  updatedTick = true
+                  pendingTicks.update(tick, (env, cableLoads, delta))
                 case Left(err) => println(s"Failed to decode tick telemetry: $err")
               }
             }
           }
 
-          if (updatedTick && latestEnv.isDefined) {
-            val env = latestEnv.get
-            val cableLoads = latestCableLoads.get
-            val delta = latestDelta.get
-            val snap: SimulationData.SimulationSnapshot = SimulationData.SimulationSnapshot(env, entityStates, entityFlows, cableLoads, delta)
-            
-            // Update controller's state references
-            stateRef.set(SimulationState(env, entityStates, entityFlows, cableLoads))
-            confRef.set(SimulationConf(delta, Normal))
+          var draining = true
+          while (draining) {
+            pendingTicks.headOption match {
+              case Some((tick, (env, cableLoads, delta))) =>
+                // Advance each known entity's applied state up to (but not beyond) `tick`.
+                val allReady = knownEntityIds.forall { id =>
+                  val q = entityQueues.getOrElseUpdate(id, scala.collection.mutable.Queue.empty)
+                  while (q.nonEmpty && q.front._1 <= tick) {
+                    val (t, state, flow) = q.dequeue()
+                    entityStates = entityStates + (id -> state)
+                    entityFlows = entityFlows + (id -> flow)
+                    entityAppliedTick = entityAppliedTick + (id -> t)
+                  }
+                  entityAppliedTick.get(id).exists(_ >= tick)
+                }
 
-            // Push to Signals
-            snapshotSignal.set(snap).unsafeRunSync()
-            
-            // Update stats
-            currentStatsState = StatisticsRegistry.engine.step(currentStatsState, snap)
-            statsSignal.set(currentStatsState).unsafeRunSync()
+                if (allReady) {
+                  pendingTicks.remove(tick)
+
+                  val snap: SimulationData.SimulationSnapshot = SimulationData.SimulationSnapshot(env, entityStates, entityFlows, cableLoads, delta)
+
+                  stateRef.set(SimulationState(env, entityStates, entityFlows, cableLoads))
+                  confRef.set(SimulationConf(delta, Normal))
+
+                  currentStatsState = StatisticsRegistry.engine.step(currentStatsState, snap)
+
+                  val now = System.nanoTime()
+                  if (pendingTicks.isEmpty || (now - lastPublishAt) >= publishInterval.toNanos) {
+                    snapshotSignal.set(snap).unsafeRunSync()
+                    statsSignal.set(currentStatsState).unsafeRunSync()
+                    lastPublishAt = now
+                  }
+                } else {
+                  draining = false
+                }
+              case None =>
+                draining = false
+            }
           }
         }
       } catch {
@@ -165,7 +186,7 @@ object RemoteSimulationBuilder {
         consumer.close()
       }
     })
-    
+
     thread.setDaemon(true)
     thread.start()
 
