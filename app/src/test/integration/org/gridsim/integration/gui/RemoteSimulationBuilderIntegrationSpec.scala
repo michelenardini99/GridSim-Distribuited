@@ -89,7 +89,7 @@ class RemoteSimulationBuilderIntegrationSpec
     val solarState = SolarPanelState("solar-1", efficiency = 0.20)
     val flowResult = Surplus(Energy(12.5))
     val entityBytes = SimulationDataCodecs.telemetryToBinary("solar-1", 0L, solarState, flowResult)
-    producer.send(new ProducerRecord[String, Array[Byte]](entityTopic, "solar-1", entityBytes))
+    producer.send(new ProducerRecord[String, Array[Byte]](entityTopic, "solar-1", entityBytes)).get()
 
     // 3. Publish Tick Telemetry
     val newEnv = env.advance(delta)

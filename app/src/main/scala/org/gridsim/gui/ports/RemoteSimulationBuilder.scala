@@ -107,7 +107,9 @@ object RemoteSimulationBuilder {
         while (!Thread.currentThread().isInterrupted) {
           val records = consumer.poll(java.time.Duration.ofMillis(100))
           var updatedTick = false
-          var latestSnapshot: Option[SimulationSnapshot] = None
+          var latestEnv: Option[Environment] = None
+          var latestCableLoads: Option[Map[Cable, Energy]] = None
+          var latestDelta: Option[FiniteDuration] = None
           
           records.asScala.foreach { record =>
             if (record.topic() == entitiesTopic) {
@@ -120,21 +122,25 @@ object RemoteSimulationBuilder {
             } else if (record.topic() == ticksTopic) {
               SimulationDataCodecs.gridTickFromBinary(record.value()) match {
                 case Right((tick, env, cableLoads, delta)) =>
-                  val snapshot: SimulationData.SimulationSnapshot = SimulationData.SimulationSnapshot(env, entityStates, entityFlows, cableLoads, delta)
-                  latestSnapshot = Some(snapshot)
-                  
-                  // Update controller's state references
-                  stateRef.set(SimulationState(env, entityStates, entityFlows, cableLoads))
-                  confRef.set(SimulationConf(delta, Normal))
-                  
+                  latestEnv = Some(env)
+                  latestCableLoads = Some(cableLoads)
+                  latestDelta = Some(delta)
                   updatedTick = true
                 case Left(err) => println(s"Failed to decode tick telemetry: $err")
               }
             }
           }
 
-          if (updatedTick && latestSnapshot.isDefined) {
-            val snap = latestSnapshot.get
+          if (updatedTick && latestEnv.isDefined) {
+            val env = latestEnv.get
+            val cableLoads = latestCableLoads.get
+            val delta = latestDelta.get
+            val snap: SimulationData.SimulationSnapshot = SimulationData.SimulationSnapshot(env, entityStates, entityFlows, cableLoads, delta)
+            
+            // Update controller's state references
+            stateRef.set(SimulationState(env, entityStates, entityFlows, cableLoads))
+            confRef.set(SimulationConf(delta, Normal))
+
             // Push to Signals
             snapshotSignal.set(snap).unsafeRunSync()
             
