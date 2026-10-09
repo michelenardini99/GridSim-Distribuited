@@ -5,6 +5,8 @@ import org.gridsim.actor.protocol.EntityProtocol.EntityEvolved
 import org.gridsim.core.model.Environment
 import org.gridsim.core.simulation.{SimulationConf, SimulationModel, SimulationSpeed, SimulationState}
 
+import scala.concurrent.duration.FiniteDuration
+
 object SimulationProtocol:
 
   sealed trait SimulationCommand extends Serializable
@@ -25,6 +27,7 @@ object SimulationProtocol:
   case object Stop extends SimulationCommand
 
   final case class UpdateSpeed(speed: SimulationSpeed) extends SimulationCommand
+  final case class UpdateTickDelta(delta: FiniteDuration) extends SimulationCommand
 
   case object Ack extends SimulationCommand
   case object TickTimer extends SimulationCommand
@@ -51,3 +54,4 @@ object SimulationProtocol:
   final case class TickAdvanced(env: Environment, tick: Long = 0L) extends SimulationEvent
 
   final case class SpeedUpdated(speed: SimulationSpeed) extends SimulationEvent
+  final case class TickDeltaUpdated(delta: FiniteDuration) extends SimulationEvent

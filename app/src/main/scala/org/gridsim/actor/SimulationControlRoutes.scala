@@ -24,6 +24,7 @@ case class CreateSimulationRequest(preset: String)
 case class SimulationResponse(id: String, preset: String)
 case class MessageResponse(message: String)
 case class UpdateSpeedRequest(speed: String)
+case class UpdateTickRequest(deltaSeconds: Long)
 
 object SimulationJsonFormats:
   implicit val createFormat: RootJsonFormat[CreateSimulationRequest] = jsonFormat1(CreateSimulationRequest.apply)
@@ -32,6 +33,7 @@ object SimulationJsonFormats:
   implicit val infoFormat: RootJsonFormat[SimulationRegistryActor.SimulationInfo] = jsonFormat2(SimulationRegistryActor.SimulationInfo.apply)
   implicit val listFormat: RootJsonFormat[SimulationRegistryActor.SimulationsList] = jsonFormat1(SimulationRegistryActor.SimulationsList.apply)
   implicit val speedReqFormat: RootJsonFormat[UpdateSpeedRequest] = jsonFormat1(UpdateSpeedRequest.apply)
+  implicit val tickReqFormat: RootJsonFormat[UpdateTickRequest] = jsonFormat1(UpdateTickRequest.apply)
 
 class SimulationControlRoutes(
     registry: ActorRef[SimulationRegistryActor.Command],
@@ -118,6 +120,14 @@ class SimulationControlRoutes(
                     case None =>
                       complete(400 -> MessageResponse(s"Unknown speed '${req.speed}'"))
                   }
+                }
+              }
+            },
+            path("tick") {
+              post {
+                entity(as[UpdateTickRequest]) { req =>
+                  entityRefFor(id) ! UpdateTickDelta(req.deltaSeconds.seconds)
+                  complete(MessageResponse(s"Tick delta update sent to simulation $id"))
                 }
               }
             },

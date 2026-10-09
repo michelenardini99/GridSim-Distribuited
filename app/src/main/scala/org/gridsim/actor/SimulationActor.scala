@@ -11,7 +11,7 @@ import org.apache.pekko.persistence.typed.RecoveryCompleted
 import org.apache.pekko.util.Timeout
 import org.gridsim.actor.SimulationActor.Status.{IdleStatus, PausedStatus, RunningStatus, StoppedStatus}
 import org.gridsim.actor.protocol.EntityProtocol.{EntityCommand, EntityEvolved, Evolve}
-import org.gridsim.actor.protocol.SimulationProtocol.{Ack, EntitiesEvolved, Initialize, Initialized, Pause, Paused, SimulationCommand, SimulationEvent, SpeedUpdated, Start, Started, Stopped, TickAdvanced, TickFailed, TickTimer, UpdateSpeed}
+import org.gridsim.actor.protocol.SimulationProtocol.{Ack, EntitiesEvolved, Initialize, Initialized, Pause, Paused, SimulationCommand, SimulationEvent, SpeedUpdated, Start, Started, Stopped, TickAdvanced, TickDeltaUpdated, TickFailed, TickTimer, UpdateSpeed, UpdateTickDelta}
 import org.gridsim.actor.telemetry.{SimulationTickPublisher, TelemetryPublisher}
 import org.gridsim.core.common.Power
 import org.gridsim.core.model.{Environment, GridEntityState}
@@ -127,6 +127,9 @@ object SimulationActor:
           case (State(Some(_), _, _, Some(conf), _), UpdateSpeed(speed)) =>
             Effect.persist(SpeedUpdated(speed))
 
+          case (State(Some(_), _, _, Some(conf), _), UpdateTickDelta(delta)) =>
+            Effect.persist(TickDeltaUpdated(delta))
+
           case _ => Effect.unhandled
         ,
         eventHandler = (state, event) => event match
@@ -136,6 +139,7 @@ object SimulationActor:
           case Stopped                      => state.copy(status = StoppedStatus)
           case TickAdvanced(env, tick)      => state.copy(env = Some(env), tick = tick)
           case SpeedUpdated(speed)          => state.copy(conf = state.conf.map(_.copy(speed = speed)))
+          case TickDeltaUpdated(delta)      => state.copy(conf = state.conf.map(_.copy(delta = delta)))
       )
         .receiveSignal {
           case (State(Some(_), RunningStatus, _, _, _), RecoveryCompleted) =>

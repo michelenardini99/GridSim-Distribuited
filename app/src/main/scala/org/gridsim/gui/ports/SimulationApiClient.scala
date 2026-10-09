@@ -8,6 +8,7 @@ import java.net.http.{HttpClient, HttpRequest, HttpResponse}
 import java.net.URI
 import java.time.Duration
 import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.duration.FiniteDuration
 import scala.util.Try
 
 case class SimulationItem(id: String, preset: String)
@@ -35,7 +36,7 @@ trait SimulationApiClient:
   def stopSimulation(id: String): Future[Unit]
   def getSimulationStatus(id: String): Future[String]
   def setSimulationSpeed(id: String, speed: SimulationSpeed): Future[Unit]
-  def setSimulationTickDuration(id: String): Future[Unit]
+  def setSimulationTickDuration(id: String, delta: FiniteDuration): Future[Unit]
 
 /**
  * HTTP implementation of the SimulationApiClient using java.net.http
@@ -131,4 +132,13 @@ class HttpSimulationApiClient(config: ClientConfig)(implicit ec: ExecutionContex
     if (response.statusCode() != 200) throw new RuntimeException(s"API returned ${response.statusCode()}: ${response.body()}")
   }
   
-  override def setSimulationTickDuration(id: String): Future[Unit] = ???
+  override def setSimulationTickDuration(id: String, delta: FiniteDuration): Future[Unit] = Future {
+    val body = s"""{"deltaSeconds":${delta.toSeconds}}"""
+    val req = HttpRequest.newBuilder()
+      .uri(URI.create(s"${config.apiEndpoint}/api/simulations/$id/tick"))
+      .header("Content-Type", "application/json")
+      .POST(HttpRequest.BodyPublishers.ofString(body))
+      .build()
+    val response = client.send(req, HttpResponse.BodyHandlers.ofString())
+    if (response.statusCode() != 200) throw new RuntimeException(s"API returned ${response.statusCode()}: ${response.body()}")
+  }

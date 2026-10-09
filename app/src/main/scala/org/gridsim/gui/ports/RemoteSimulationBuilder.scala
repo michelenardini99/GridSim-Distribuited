@@ -54,7 +54,10 @@ object RemoteSimulationBuilder {
 
     override def resume(): Unit = start()
 
-    override def setTick(delta: FiniteDuration): Unit = ()
+    override def setTick(delta: FiniteDuration): Unit = {
+      apiClient.setSimulationTickDuration(simId, delta)
+      confRef.updateAndGet(_.copy(delta = delta))
+    }
     override def setSpeed(speed: SimulationSpeed): Unit = {
       apiClient.setSimulationSpeed(simId, speed)
       confRef.updateAndGet(_.copy(speed = speed))
