@@ -1,4 +1,4 @@
-package org.gridsim.agent
+package org.gridsim.actor
 
 import org.apache.pekko.actor.typed.ActorSystem
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
@@ -6,6 +6,7 @@ import org.apache.pekko.cluster.sharding.typed.scaladsl.{ClusterSharding, Entity
 import org.apache.pekko.http.scaladsl.Http
 import org.apache.pekko.persistence.typed.PersistenceId
 import org.gridsim.actor.{EntityActor, SimulationActor}
+import org.gridsim.actor.telemetry.{KafkaEntityTelemetryPublisher, KafkaSimulationTickPublisher, TelemetryPublisher}
 import org.gridsim.core.behaviour.{EntityEvolutionDispatcher, EntityEvolutionHandler, EvolutionRequest}
 import org.gridsim.core.behaviour.house.ConsumptionResolver.given
 import org.gridsim.core.behaviour.shaping.DemandShaper.default
@@ -19,7 +20,7 @@ import com.typesafe.config.ConfigFactory
 import scala.concurrent.duration._
 import scala.util.{Failure, Success}
 
-object AgentMain:
+object ActorMain:
 
   def main(args: Array[String]): Unit =
     val config = ConfigFactory.parseString("""
@@ -42,11 +43,18 @@ object AgentMain:
         override def supports(req: EvolutionRequest): Boolean = true
         override def evolve(req: EvolutionRequest): (GridEntityState, Flow[Energy]) = dispatcher.evolve(req)
 
+      val kafkaProducer = TelemetryPublisher.createKafkaProducer("localhost:9092")
+
       // 1. Initialize EntityActor Sharding
       sharding.init(Entity(EntityActor.TypeKey) { entityContext =>
+        val entityId = entityContext.entityId
+        // Assuming simulationId is a UUID (36 chars) followed by "-" and localId
+        val simulationId = if (entityId.length > 36) entityId.take(36) else entityId
+        
         EntityActor(
-          PersistenceId(entityContext.entityTypeKey.name, entityContext.entityId),
-          handlerFor
+          PersistenceId(entityContext.entityTypeKey.name, entityId),
+          handlerFor,
+          new KafkaEntityTelemetryPublisher(kafkaProducer, s"grid.entities.$simulationId")
         )
       })
 
@@ -54,17 +62,12 @@ object AgentMain:
       sharding.init(Entity(SimulationActor.TypeKey) { entityContext =>
         val simulationId = entityContext.entityId
         val entityRefFor = (localId: String) => sharding.entityRefFor(EntityActor.TypeKey, EntityActor.entityId(simulationId, localId))
-        // TODO: In a real distributed system, we would need the grid model here for KirchhoffPowerFlowSolver, 
-        // but wait! KirchhoffPowerFlowSolver takes the grid! How do we pass the grid if we don't have it when defining the behavior?
-        // Ah! SimulationActor needs a flowSolver. 
-        // Let's check SimulationActor again... 
-        
-        // Wait, flowSolver requires the grid in KirchhoffPowerFlowSolver. Let me rethink this...
         
         SimulationActor(
           PersistenceId(entityContext.entityTypeKey.name, simulationId),
           entityRefFor,
-          1.second
+          1.second,
+          new KafkaSimulationTickPublisher(kafkaProducer, s"grid.ticks.$simulationId")
         )
       })
 

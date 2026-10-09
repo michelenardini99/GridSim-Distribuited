@@ -1,4 +1,4 @@
-package org.gridsim.agent
+package org.gridsim.actor
 
 import java.util.UUID
 import org.apache.pekko.http.scaladsl.server.Directives._
@@ -20,7 +20,6 @@ import java.time.LocalDateTime
 
 import scala.concurrent.duration._
 import scala.concurrent.Future
-
 case class CreateSimulationRequest(preset: String)
 case class SimulationResponse(id: String, preset: String)
 case class MessageResponse(message: String)

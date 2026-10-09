@@ -1,8 +1,8 @@
-package org.gridsim.agent
+package org.gridsim.actor
 
 import org.apache.pekko.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
 import org.scalatest.wordspec.AnyWordSpecLike
-import org.gridsim.agent.SimulationRegistryActor._
+import org.gridsim.actor.SimulationRegistryActor._
 import org.junit.runner.RunWith
 import org.scalatestplus.junit.JUnitRunner
 
