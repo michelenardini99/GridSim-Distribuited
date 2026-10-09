@@ -80,7 +80,7 @@ object ActorMain:
         (id: String) => sharding.entityRefFor(SimulationActor.TypeKey, id)
       ).routes
       
-      val bindingFuture = Http().newServerAt("0.0.0.1", 8080).bind(routes)
+      val bindingFuture = Http().newServerAt("0.0.0.0", 8080).bind(routes)
       
       implicit val ec = system.executionContext
       bindingFuture.onComplete {
