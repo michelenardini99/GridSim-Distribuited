@@ -238,6 +238,20 @@ tasks.register<JavaExec>("runGraphView") {
     classpath = sourceSets["main"].runtimeClasspath
 }
 
+tasks.register<JavaExec>("runBackend") {
+    group = "application"
+    description = "Run the Simulation Backend (Actor System)"
+    mainClass = "org.gridsim.actor.ActorMain"
+    classpath = sourceSets["main"].runtimeClasspath
+}
+
+tasks.register<JavaExec>("runGui") {
+    group = "application"
+    description = "Run the GridSim Graphical User Interface"
+    mainClass = "org.gridsim.gui.app.GuiApp"
+    classpath = sourceSets["main"].runtimeClasspath
+}
+
 val gradlew = if (osName.contains("win")) "${rootProject.projectDir}\\gradlew.bat" else "${rootProject.projectDir}/gradlew"
 
 tasks.register<Exec>("buildAmd64Jar") {
