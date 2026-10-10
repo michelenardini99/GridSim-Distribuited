@@ -99,7 +99,7 @@ class SimulationActorSpec
       EntityEvolved("n2", Deficit(5.kwh))
     )
 
-    val result = kit.runCommand(EntitiesEvolved(newEnv, entityResults))
+    val result = kit.runCommand(EntitiesEvolved(newEnv, entityResults, true))
 
     result.event shouldBe TickAdvanced(newEnv, 1L)
     result.state.tick shouldBe 1L
@@ -122,11 +122,11 @@ class SimulationActorSpec
 
     val env1 = env.advance(conf.delta)
     val entityResults1 = List(EntityEvolved("n1", Surplus(5.kwh)), EntityEvolved("n2", Deficit(5.kwh)))
-    kit.runCommand(EntitiesEvolved(env1, entityResults1))
+    kit.runCommand(EntitiesEvolved(env1, entityResults1, true))
 
     val env2 = env1.advance(conf.delta)
     val entityResults2 = List(EntityEvolved("n1", Surplus(7.kwh)), EntityEvolved("n2", Deficit(7.kwh)))
-    val res2 = kit.runCommand(EntitiesEvolved(env2, entityResults2))
+    val res2 = kit.runCommand(EntitiesEvolved(env2, entityResults2, true))
 
     res2.event shouldBe TickAdvanced(env2, 2L)
     res2.state.tick shouldBe 2L

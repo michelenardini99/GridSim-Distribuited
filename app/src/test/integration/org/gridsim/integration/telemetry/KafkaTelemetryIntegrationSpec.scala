@@ -186,7 +186,7 @@ class KafkaTelemetryIntegrationSpec
 
     val newEnv = env.advance(delta)
     val evolvedResults = List(EntityEvolved("solar-1", Surplus(12.5.kwh)))
-    val res = kit.runCommand(EntitiesEvolved(newEnv, evolvedResults))
+    val res = kit.runCommand(EntitiesEvolved(newEnv, evolvedResults, true))
 
     res.event shouldBe TickAdvanced(newEnv, 1L)
 

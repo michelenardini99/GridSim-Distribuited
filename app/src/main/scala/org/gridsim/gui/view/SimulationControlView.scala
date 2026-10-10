@@ -76,15 +76,22 @@ class SimulationControlView(viewModel: SimulationControlViewModel) extends HBox(
         viewModel.selectSpeed(speed)
         selected = true
 
+  private val speedButtons = Seq(
+    SimulationSpeed.Slow -> speedButton("0.5×", SimulationSpeed.Slow, "Slow — one tick every 2 seconds"),
+    SimulationSpeed.Normal -> speedButton("1×", SimulationSpeed.Normal, "Normal — one tick every second"),
+    SimulationSpeed.Speed -> speedButton("2×", SimulationSpeed.Speed, "Fast — two ticks per second"),
+    SimulationSpeed.UltraSpeed -> speedButton("10×", SimulationSpeed.UltraSpeed, "Ultra — ten ticks per second")
+  )
+
+  // Keep the toggles aligned when the speed is changed by another client
+  viewModel.selectedSpeed.onChange { (_, _, speed) =>
+    speedButtons.foreach((s, button) => button.selected = s == speed)
+  }
+
   private val speedSelector = new HBox(2):
     alignment = Pos.Center
     styleClass += "speed-selector"
-    children = Seq(
-      speedButton("0.5×", SimulationSpeed.Slow, "Slow — one tick every 2 seconds"),
-      speedButton("1×", SimulationSpeed.Normal, "Normal — one tick every second"),
-      speedButton("2×", SimulationSpeed.Speed, "Fast — two ticks per second"),
-      speedButton("10×", SimulationSpeed.UltraSpeed, "Ultra — ten ticks per second")
-    )
+    children = speedButtons.map(_._2)
 
   // Dynamically update style classes of the status badge on state change
   private def updateBadgeStyle(status: String): Unit =

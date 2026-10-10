@@ -3,8 +3,13 @@ package org.gridsim.gui.model
 import cats.effect.IO
 import fs2.concurrent.SignallingRef
 import org.gridsim.core.observability.SimulationData
-import org.gridsim.core.simulation.{SimulationController, SimulationModel}
+import org.gridsim.core.simulation.{SimulationConf, SimulationController, SimulationControllerState, SimulationModel}
 import org.gridsim.statistics.StatisticsRegistry
+
+/**
+ * Lifecycle status and configuration of a simulation as last reported by the backend.
+ */
+case class ControlState(status: SimulationControllerState, conf: SimulationConf)
 
 /**
  * Representation of an active simulation loop setup.
@@ -14,11 +19,13 @@ import org.gridsim.statistics.StatisticsRegistry
  * @param model the static topology and parameters configuration of the grid
  * @param controller the engine state controller (handling start, pause, resume, step)
  * @param snapshotSignal signaling stream emitting simulation snapshot updates
+ * @param controlSignal signaling stream emitting control changes made by any client (remote simulations only)
  */
 case class RunningSimulation(
   name: String,
   model: SimulationModel,
   controller: SimulationController,
   snapshotSignal: SignallingRef[IO, SimulationData.SimulationSnapshot],
-  statisticsSignal: SignallingRef[IO, StatisticsRegistry.engine.State]
+  statisticsSignal: SignallingRef[IO, StatisticsRegistry.engine.State],
+  controlSignal: Option[SignallingRef[IO, ControlState]] = None
 )

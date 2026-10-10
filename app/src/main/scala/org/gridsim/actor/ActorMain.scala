@@ -6,7 +6,7 @@ import org.apache.pekko.cluster.sharding.typed.scaladsl.{ClusterSharding, Entity
 import org.apache.pekko.http.scaladsl.Http
 import org.apache.pekko.persistence.typed.PersistenceId
 import org.gridsim.actor.{EntityActor, SimulationActor}
-import org.gridsim.actor.telemetry.{KafkaEntityTelemetryPublisher, KafkaSimulationTickPublisher, TelemetryPublisher}
+import org.gridsim.actor.telemetry.{KafkaEntityTelemetryPublisher, KafkaSimulationControlPublisher, KafkaSimulationTickPublisher, TelemetryPublisher}
 import org.gridsim.core.behaviour.{EntityEvolutionDispatcher, EntityEvolutionHandler, EvolutionRequest}
 import org.gridsim.core.behaviour.house.ConsumptionResolver.given
 import org.gridsim.core.behaviour.shaping.DemandShaper.default
@@ -67,7 +67,8 @@ object ActorMain:
           PersistenceId(entityContext.entityTypeKey.name, simulationId),
           entityRefFor,
           1.second,
-          new KafkaSimulationTickPublisher(kafkaProducer, s"grid.ticks.$simulationId")
+          new KafkaSimulationTickPublisher(kafkaProducer, s"grid.ticks.$simulationId"),
+          new KafkaSimulationControlPublisher(kafkaProducer, simulationId, s"grid.control.$simulationId")
         )
       })
 

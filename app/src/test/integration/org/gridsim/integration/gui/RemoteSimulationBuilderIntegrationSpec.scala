@@ -9,11 +9,12 @@ import org.gridsim.core.common.Power.*
 import org.gridsim.core.model.*
 import org.gridsim.core.model.network.{Cable, CableConnections, ExternalGrid, GridGraph}
 import org.gridsim.core.observability.serialization.SimulationDataCodecs
-import org.gridsim.core.simulation.SimulationModel
+import org.gridsim.core.simulation.{SimulationModel, SimulationSpeed}
 import org.gridsim.gui.model.ClientConfig
 import org.gridsim.gui.ports.{RemoteSimulationBuilder, SimulationApiClient, SimulationItem}
 import org.gridsim.actor.telemetry.TelemetryPublisher
 import org.junit.runner.RunWith
+import scala.concurrent.duration.FiniteDuration
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
@@ -73,7 +74,10 @@ class RemoteSimulationBuilderIntegrationSpec
       override def startSimulation(id: String): Future[Unit] = Future.unit
       override def pauseSimulation(id: String): Future[Unit] = Future.unit
       override def stopSimulation(id: String): Future[Unit] = Future.unit
+      override def stepSimulation(id: String): Future[Unit] = Future.unit
       override def getSimulationStatus(id: String): Future[String] = Future.successful("RunningStatus")
+      override def setSimulationSpeed(id: String, speed: SimulationSpeed): Future[Unit] = Future.unit
+      override def setSimulationTickDuration(id: String, delta: FiniteDuration): Future[Unit] = Future.unit
     }
 
     // 1. Initialize RemoteSimulationBuilder

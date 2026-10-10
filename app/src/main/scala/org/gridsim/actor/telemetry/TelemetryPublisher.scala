@@ -5,7 +5,7 @@ import org.apache.kafka.common.serialization.{ByteArraySerializer, StringSeriali
 import org.gridsim.core.common.{Energy, Flow}
 import org.gridsim.core.model.{Environment, GridEntityState}
 import org.gridsim.core.model.network.Cable
-import org.gridsim.core.observability.serialization.SimulationDataCodecs
+import org.gridsim.core.observability.serialization.{SimulationControlCodec, SimulationControlUpdate, SimulationDataCodecs}
 
 import java.util.Properties
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -24,6 +24,13 @@ trait EntityTelemetryPublisher:
   */
 trait SimulationTickPublisher:
   def publish(tick: Long, env: Environment, cableLoads: Map[Cable, Energy], delta: FiniteDuration): Unit
+  def close(): Unit = ()
+
+/** Publisher interface allowing the [[org.gridsim.actor.SimulationActor]] to broadcast
+  * lifecycle and configuration changes (status, speed, tick delta) to every client.
+  */
+trait SimulationControlPublisher:
+  def publish(update: SimulationControlUpdate): Unit
   def close(): Unit = ()
 
 /** Production [[EntityTelemetryPublisher]] backed by an Apache Kafka producer.
@@ -67,6 +74,21 @@ class KafkaSimulationTickPublisher(
 
   override def close(): Unit = producer.close()
 
+/** Production [[SimulationControlPublisher]] backed by an Apache Kafka producer.
+  * All updates share the same key so they land on one partition and keep their order.
+  */
+class KafkaSimulationControlPublisher(
+    producer: Producer[String, Array[Byte]],
+    simulationId: String,
+    topic: String
+) extends SimulationControlPublisher:
+
+  override def publish(update: SimulationControlUpdate): Unit =
+    val record = new ProducerRecord[String, Array[Byte]](topic, simulationId, SimulationControlCodec.toBinary(update))
+    producer.send(record)
+
+  override def close(): Unit = producer.close()
+
 object TelemetryPublisher:
 
   /** Helper to construct a standard [[KafkaProducer]] configured for byte array values. */
@@ -85,6 +107,9 @@ object TelemetryPublisher:
 
   object NoOpSimulationTickPublisher extends SimulationTickPublisher:
     override def publish(tick: Long, env: Environment, cableLoads: Map[Cable, Energy], delta: FiniteDuration): Unit = ()
+
+  object NoOpSimulationControlPublisher extends SimulationControlPublisher:
+    override def publish(update: SimulationControlUpdate): Unit = ()
 
   /** Thread-safe recording publisher used in automated unit and actor tests. */
   class RecordingEntityTelemetryPublisher extends EntityTelemetryPublisher:

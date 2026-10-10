@@ -10,9 +10,9 @@ import org.gridsim.core.model.{Environment, GridEntityState}
 import org.gridsim.core.model.network.{Cable, ExternalGrid}
 import org.gridsim.core.observability.SimulationData
 import org.gridsim.core.observability.SimulationData.SimulationSnapshot
-import org.gridsim.core.observability.serialization.SimulationDataCodecs
+import org.gridsim.core.observability.serialization.{SimulationControlCodec, SimulationDataCodecs}
 import org.gridsim.core.simulation.{SimulationConf, SimulationController, SimulationControllerState, SimulationModel, SimulationSpeed, SimulationState}
-import org.gridsim.gui.model.{ClientConfig, RunningSimulation}
+import org.gridsim.gui.model.{ClientConfig, ControlState, RunningSimulation}
 import org.gridsim.statistics.StatisticsRegistry
 import org.gridsim.core.simulation.SimulationControllerState.{PAUSED, RUNNING}
 import org.gridsim.core.simulation.SimulationSpeed.Normal
@@ -103,6 +103,10 @@ object RemoteSimulationBuilder {
       StatisticsRegistry.engine.initial
     ).unsafeRunSync()
 
+    val controlSignal = SignallingRef[IO, ControlState](
+      ControlState(initialStatus, confRef.get())
+    ).unsafeRunSync()
+
     // Spawn a background thread for Kafka Consumption
     val thread = new Thread(() => {
       val props = new Properties()
@@ -115,7 +119,8 @@ object RemoteSimulationBuilder {
       val consumer = new KafkaConsumer[String, Array[Byte]](props)
       val entitiesTopic = s"grid.entities.$simId"
       val ticksTopic = s"grid.ticks.$simId"
-      consumer.subscribe(java.util.Arrays.asList(entitiesTopic, ticksTopic))
+      val controlTopic = s"grid.control.$simId"
+      consumer.subscribe(java.util.Arrays.asList(entitiesTopic, ticksTopic, controlTopic))
 
       val entityQueues = scala.collection.mutable.Map.empty[String, scala.collection.mutable.Queue[(Long, GridEntityState, Flow[Energy])]]
       val knownEntityIds: Set[String] = model.grid.nodes.filterNot(_.isInstanceOf[ExternalGrid]).map(_.id).toSet
@@ -144,6 +149,16 @@ object RemoteSimulationBuilder {
                 case Right((tick, env, cableLoads, delta)) =>
                   pendingTicks.update(tick, (env, cableLoads, delta))
                 case Left(err) => println(s"Failed to decode tick telemetry: $err")
+              }
+            } else if (record.topic() == controlTopic) {
+              SimulationControlCodec.fromBinary(record.value()) match {
+                case Right(update) =>
+                  // The backend is the source of truth: overwrite the local status and configuration
+                  val status = if (update.status == "RunningStatus") RUNNING else PAUSED
+                  statusRef.set(status)
+                  val conf = confRef.updateAndGet(_.copy(speed = update.speed, delta = update.delta))
+                  controlSignal.set(ControlState(status, conf)).unsafeRunSync()
+                case Left(err) => println(s"Failed to decode control message: $err")
               }
             }
           }
@@ -199,6 +214,6 @@ object RemoteSimulationBuilder {
     thread.setDaemon(true)
     thread.start()
 
-    RunningSimulation(presetName, model, controller, snapshotSignal, statsSignal)
+    RunningSimulation(presetName, model, controller, snapshotSignal, statsSignal, Some(controlSignal))
   }
 }

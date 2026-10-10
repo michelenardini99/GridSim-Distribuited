@@ -3,7 +3,7 @@ package org.gridsim.gui.viewmodel
 import scalafx.beans.property.{BooleanProperty, ObjectProperty, StringProperty}
 import org.gridsim.core.simulation.{SimulationControllerState, SimulationSpeed}
 import org.gridsim.core.simulation.SimulationControllerState.{PAUSED, RUNNING}
-import org.gridsim.gui.model.{RunningSimulation, TickDurationUnit}
+import org.gridsim.gui.model.{ControlState, RunningSimulation, TickDurationUnit}
 
 import scala.concurrent.duration.*
 
@@ -27,8 +27,10 @@ class SimulationControlViewModel(
   /** Text representing the current state of the simulation controller (e.g., "RUNNING", "PAUSED", "STOPPED"). */
   val statusText: StringProperty = StringProperty("PAUSED")
 
-  private val (initialAmount, initialUnit) = {
-    val duration = running.controller.configuration.delta
+  /** True while applying a change received from the backend, so it is not sent back to it. */
+  private var syncingFromRemote = false
+
+  private def toAmountAndUnit(duration: FiniteDuration): (Int, TickDurationUnit) =
     val seconds = duration.toSeconds
     if seconds > 0 && seconds % (24 * 3600) == 0 then
       ((seconds / (24 * 3600)).toInt, TickDurationUnit.Days)
@@ -37,8 +39,9 @@ class SimulationControlViewModel(
     else if seconds > 0 && seconds % 60 == 0 then
       ((seconds / 60).toInt, TickDurationUnit.Minutes)
     else
-      (duration.toSeconds.toInt, TickDurationUnit.Seconds)
-  }
+      (seconds.toInt, TickDurationUnit.Seconds)
+
+  private val (initialAmount, initialUnit) = toAmountAndUnit(running.controller.configuration.delta)
 
   /** Property bound to the input field specifying the numeric tick amount. */
   val tickAmountText = StringProperty(initialAmount.toString)
@@ -73,7 +76,7 @@ class SimulationControlViewModel(
     yield tickUnit.value.toDuration(tickAmount)
 
   private def updateTick(): Unit =
-    parsed match
+    if !syncingFromRemote then parsed match
       case Left(err) => ()
       case Right(tickDelta) =>
         running.controller.setTick(tickDelta)
@@ -109,6 +112,22 @@ class SimulationControlViewModel(
       stepDisabled.value = controllerState == RUNNING
       playPauseText.value = if controllerState == RUNNING then "Pause" else "Play"
       statusText.value = controllerState.toString
+
+  /**
+   * Aligns the controls with a status/configuration change made by any client.
+   * Must be called on the JavaFX Application Thread.
+   */
+  def syncWith(control: ControlState): Unit =
+    syncingFromRemote = true
+    try
+      selectedSpeed.value = control.conf.speed
+      if parsed.toOption.forall(_ != control.conf.delta) then
+        val (amount, unit) = toAmountAndUnit(control.conf.delta)
+        tickUnit.value = unit
+        tickAmountText.value = amount.toString
+    finally syncingFromRemote = false
+    update(control.status)
+    onTickChanged()
 
   /** Toggles the simulation status between running and paused. */
   def togglePlayPause(): Unit =

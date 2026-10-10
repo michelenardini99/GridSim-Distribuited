@@ -12,9 +12,10 @@ import org.apache.pekko.util.Timeout
 import org.gridsim.actor.SimulationActor.Status.{IdleStatus, PausedStatus, RunningStatus, StoppedStatus}
 import org.gridsim.actor.protocol.EntityProtocol.{EntityCommand, EntityEvolved, Evolve}
 import org.gridsim.actor.protocol.SimulationProtocol.{Step, Ack, EntitiesEvolved, Initialize, Initialized, Pause, Paused, SimulationCommand, SimulationEvent, SpeedUpdated, Start, Started, Stopped, TickAdvanced, TickDeltaUpdated, TickFailed, TickTimer, UpdateSpeed, UpdateTickDelta}
-import org.gridsim.actor.telemetry.{SimulationTickPublisher, TelemetryPublisher}
+import org.gridsim.actor.telemetry.{SimulationControlPublisher, SimulationTickPublisher, TelemetryPublisher}
 import org.gridsim.core.common.Power
 import org.gridsim.core.model.{Environment, GridEntityState}
+import org.gridsim.core.observability.serialization.SimulationControlUpdate
 import org.gridsim.core.simulation.{SimulationConf, SimulationModel, SimulationState, interval}
 import org.gridsim.core.solver.PowerFlowSolver
 
@@ -40,10 +41,18 @@ object SimulationActor:
     persistenceId: PersistenceId,
     entityRefFor: String => EntityRef[EntityCommand],
     tickTimeout: FiniteDuration,
-    publisher: SimulationTickPublisher = TelemetryPublisher.NoOpSimulationTickPublisher
+    publisher: SimulationTickPublisher = TelemetryPublisher.NoOpSimulationTickPublisher,
+    controlPublisher: SimulationControlPublisher = TelemetryPublisher.NoOpSimulationControlPublisher
   ): Behavior[SimulationCommand] =
     Behaviors.setup { context =>
       implicit val ec: ExecutionContext = context.executionContext
+
+      // Broadcast the current lifecycle/configuration so every connected client can sync its controls
+      def publishControl(state: State): Unit =
+        state.conf.foreach { conf =>
+          controlPublisher.publish(SimulationControlUpdate(state.status.toString, conf.speed, conf.delta))
+        }
+
       EventSourcedBehavior[SimulationCommand, SimulationEvent, State](
         persistenceId,
         emptyState = State(None, IdleStatus, None, None, 0L),
@@ -51,7 +60,8 @@ object SimulationActor:
           case (State(None, _, _, _, _), Initialize(model, initState, conf, replyTo)) =>
             Effect
               .persist(Initialized(model, initState.environment, conf))
-              .thenRun { _ =>
+              .thenRun { newState =>
+                publishControl(newState)
                 implicit val timeout: Timeout = Timeout(10.seconds)
                 implicit val scheduler: Scheduler = context.system.scheduler
                 val futures = model.grid.nodes.map { entity =>
@@ -75,11 +85,15 @@ object SimulationActor:
           case (State(Some(_), IdleStatus | PausedStatus, _, _, _), Start) =>
             Effect
               .persist(Started)
-              .thenRun(_ => context.self ! TickTimer)
+              .thenRun { newState =>
+                publishControl(newState)
+                context.self ! TickTimer
+              }
 
           case (State(Some(_), RunningStatus, _, _, _), Pause) =>
             Effect
               .persist(Paused)
+              .thenRun(publishControl)
 
           case (State(Some(model), IdleStatus | PausedStatus, Some(env), Some(conf), currentTick), Step) =>
             Effect
@@ -142,10 +156,10 @@ object SimulationActor:
             Effect.none
 
           case (State(Some(_), _, _, Some(conf), _), UpdateSpeed(speed)) =>
-            Effect.persist(SpeedUpdated(speed))
+            Effect.persist(SpeedUpdated(speed)).thenRun(publishControl)
 
           case (State(Some(_), _, _, Some(conf), _), UpdateTickDelta(delta)) =>
-            Effect.persist(TickDeltaUpdated(delta))
+            Effect.persist(TickDeltaUpdated(delta)).thenRun(publishControl)
 
           case _ => Effect.unhandled
         ,
@@ -159,9 +173,12 @@ object SimulationActor:
           case TickDeltaUpdated(delta)      => state.copy(conf = state.conf.map(_.copy(delta = delta)))
       )
         .receiveSignal {
-          case (State(Some(_), RunningStatus, _, _, _), RecoveryCompleted) =>
+          case (state @ State(Some(_), RunningStatus, _, _, _), RecoveryCompleted) =>
             context.log.info("Recovery completed for the simulation: ", persistenceId.id)
+            publishControl(state)
             context.self ! TickTimer
+          case (state @ State(Some(_), _, _, _, _), RecoveryCompleted) =>
+            publishControl(state)
         }
         .onPersistFailure(
           SupervisorStrategy.restartWithBackoff(

@@ -60,6 +60,14 @@ class SimulationCoordinator(
 
   controlViewModel.update(running.controller.simulationControllerState)
 
+  running.controlSignal.foreach(
+    _.discrete
+      .evalMap(control => IO(Platform.runLater(controlViewModel.syncWith(control))))
+      .compile
+      .drain
+      .unsafeRunAndForget()
+  )
+
   /** ViewModels managing the statistics. */
   val flowStatisticViewModel = FlowStatisticViewModel()
   val netFlowChartStatisticViewModel = NetFlowChartStatisticViewModel()
