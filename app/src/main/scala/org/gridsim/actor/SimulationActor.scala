@@ -11,7 +11,7 @@ import org.apache.pekko.persistence.typed.RecoveryCompleted
 import org.apache.pekko.util.Timeout
 import org.gridsim.actor.SimulationActor.Status.{IdleStatus, PausedStatus, RunningStatus, StoppedStatus}
 import org.gridsim.actor.protocol.EntityProtocol.{EntityCommand, EntityEvolved, Evolve}
-import org.gridsim.actor.protocol.SimulationProtocol.{Step, Ack, EntitiesEvolved, Initialize, Initialized, Pause, Paused, SimulationCommand, SimulationEvent, SpeedUpdated, Start, Started, Stopped, TickAdvanced, TickDeltaUpdated, TickFailed, TickTimer, UpdateSpeed, UpdateTickDelta}
+import org.gridsim.actor.protocol.SimulationProtocol.{Step, Stop, Ack, EntitiesEvolved, Initialize, Initialized, Pause, Paused, SimulationCommand, SimulationEvent, SpeedUpdated, Start, Started, Stopped, TickAdvanced, TickDeltaUpdated, TickFailed, TickTimer, UpdateSpeed, UpdateTickDelta}
 import org.gridsim.actor.telemetry.{SimulationControlPublisher, SimulationTickPublisher, TelemetryPublisher}
 import org.gridsim.core.common.Power
 import org.gridsim.core.model.{Environment, GridEntityState}
@@ -95,6 +95,12 @@ object SimulationActor:
               .persist(Paused)
               .thenRun(publishControl)
 
+          // Stopping is terminal: pending ticks are dropped and no further command restarts the simulation
+          case (State(Some(_), IdleStatus | RunningStatus | PausedStatus, _, _, _), Stop) =>
+            Effect
+              .persist(Stopped)
+              .thenRun(publishControl)
+
           case (State(Some(model), IdleStatus | PausedStatus, Some(env), Some(conf), currentTick), Step) =>
             Effect
               .none
@@ -155,10 +161,10 @@ object SimulationActor:
             replyTo ! status.toString
             Effect.none
 
-          case (State(Some(_), _, _, Some(conf), _), UpdateSpeed(speed)) =>
+          case (State(Some(_), status, _, Some(conf), _), UpdateSpeed(speed)) if status != StoppedStatus =>
             Effect.persist(SpeedUpdated(speed)).thenRun(publishControl)
 
-          case (State(Some(_), _, _, Some(conf), _), UpdateTickDelta(delta)) =>
+          case (State(Some(_), status, _, Some(conf), _), UpdateTickDelta(delta)) if status != StoppedStatus =>
             Effect.persist(TickDeltaUpdated(delta)).thenRun(publishControl)
 
           case _ => Effect.unhandled

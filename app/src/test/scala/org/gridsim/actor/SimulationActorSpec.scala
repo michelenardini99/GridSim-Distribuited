@@ -9,7 +9,9 @@ import org.apache.pekko.persistence.typed.PersistenceId
 import org.gridsim.actor.EntityActor
 import org.gridsim.actor.protocol.EntityProtocol.{EntityCommand, EntityEvolved, Evolve}
 import org.gridsim.actor.protocol.SimulationProtocol.*
+import org.gridsim.actor.telemetry.SimulationControlPublisher
 import org.gridsim.actor.telemetry.TelemetryPublisher.RecordingSimulationTickPublisher
+import org.gridsim.core.observability.serialization.SimulationControlUpdate
 import org.gridsim.core.common.*
 import org.gridsim.core.common.Energy.*
 import org.gridsim.core.common.Flow.*
@@ -137,5 +139,31 @@ class SimulationActorSpec
     val pauseRes = kit.runCommand(Pause)
     pauseRes.event shouldBe Paused
     pauseRes.state.status shouldBe SimulationActor.Status.PausedStatus
+  }
+
+  it should "stop for good and broadcast the stopped status to clients" in {
+    val controlUpdates = scala.collection.mutable.ListBuffer.empty[SimulationControlUpdate]
+    val controlPublisher = new SimulationControlPublisher:
+      override def publish(update: SimulationControlUpdate): Unit = controlUpdates.synchronized(controlUpdates += update)
+
+    val kit = EventSourcedBehaviorTestKit[SimulationCommand, SimulationEvent, SimulationActor.State](
+      testKit.system,
+      SimulationActor(newPersistenceId(), id => mockEntityRef(id), 1.hour, controlPublisher = controlPublisher),
+      EventSourcedBehaviorTestKit.SerializationSettings.disabled
+    )
+    val initState = SimulationState(env, Map.empty, Map.empty, Map.empty)
+
+    kit.runCommand[Ack.type](replyTo => Initialize(model, initState, conf, replyTo))
+    kit.runCommand(Start)
+
+    val stopRes = kit.runCommand(Stop)
+    stopRes.event shouldBe Stopped
+    stopRes.state.status shouldBe SimulationActor.Status.StoppedStatus
+    controlUpdates.synchronized(controlUpdates.last.status) shouldBe "StoppedStatus"
+
+    // A stopped simulation can no longer be restarted or advanced
+    kit.runCommand(Start).hasNoEvents shouldBe true
+    kit.runCommand(Step).hasNoEvents shouldBe true
+    kit.runCommand(EntitiesEvolved(env.advance(conf.delta), Nil, true)).hasNoEvents shouldBe true
   }
 }

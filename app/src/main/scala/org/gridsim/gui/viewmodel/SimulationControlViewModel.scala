@@ -118,6 +118,7 @@ class SimulationControlViewModel(
    * Must be called on the JavaFX Application Thread.
    */
   def syncWith(control: ControlState): Unit =
+    if control.stopped then stoppedProperty.value = true
     syncingFromRemote = true
     try
       selectedSpeed.value = control.conf.speed

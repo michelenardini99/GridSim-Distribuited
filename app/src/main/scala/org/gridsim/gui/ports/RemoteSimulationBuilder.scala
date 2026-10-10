@@ -157,7 +157,7 @@ object RemoteSimulationBuilder {
                   val status = if (update.status == "RunningStatus") RUNNING else PAUSED
                   statusRef.set(status)
                   val conf = confRef.updateAndGet(_.copy(speed = update.speed, delta = update.delta))
-                  controlSignal.set(ControlState(status, conf)).unsafeRunSync()
+                  controlSignal.set(ControlState(status, conf, stopped = update.status == "StoppedStatus")).unsafeRunSync()
                 case Left(err) => println(s"Failed to decode control message: $err")
               }
             }
