@@ -11,7 +11,7 @@ import org.apache.pekko.persistence.typed.RecoveryCompleted
 import org.apache.pekko.util.Timeout
 import org.gridsim.actor.SimulationActor.Status.{IdleStatus, PausedStatus, RunningStatus, StoppedStatus}
 import org.gridsim.actor.protocol.EntityProtocol.{EntityCommand, EntityEvolved, Evolve}
-import org.gridsim.actor.protocol.SimulationProtocol.{Ack, EntitiesEvolved, Initialize, Initialized, Pause, Paused, SimulationCommand, SimulationEvent, SpeedUpdated, Start, Started, Stopped, TickAdvanced, TickDeltaUpdated, TickFailed, TickTimer, UpdateSpeed, UpdateTickDelta}
+import org.gridsim.actor.protocol.SimulationProtocol.{Step, Ack, EntitiesEvolved, Initialize, Initialized, Pause, Paused, SimulationCommand, SimulationEvent, SpeedUpdated, Start, Started, Stopped, TickAdvanced, TickDeltaUpdated, TickFailed, TickTimer, UpdateSpeed, UpdateTickDelta}
 import org.gridsim.actor.telemetry.{SimulationTickPublisher, TelemetryPublisher}
 import org.gridsim.core.common.Power
 import org.gridsim.core.model.{Environment, GridEntityState}
@@ -81,6 +81,24 @@ object SimulationActor:
             Effect
               .persist(Paused)
 
+          case (State(Some(model), IdleStatus | PausedStatus, Some(env), Some(conf), currentTick), Step) =>
+            Effect
+              .none
+              .thenRun { _ =>
+                implicit val timeout: Timeout = Timeout(tickTimeout)
+                implicit val scheduler: Scheduler = context.system.scheduler
+
+                val newEnv = env.advance(conf.delta)
+                val futures: Iterable[Future[EntityEvolved]] = model.grid.nodes.map { e =>
+                  entityRefFor(e.id).ask(replyTo => Evolve(newEnv, conf.delta, replyTo, currentTick))
+                }
+
+                context.pipeToSelf(Future.sequence(futures)) {
+                  case Success(results) => EntitiesEvolved(newEnv, results.toList, false)
+                  case Failure(ex) => TickFailed(ex)
+                }
+              }
+
           case (State(Some(model), RunningStatus, Some(env), Some(conf), currentTick), TickTimer) =>
             Effect
               .none
@@ -94,12 +112,12 @@ object SimulationActor:
                 }
 
                 context.pipeToSelf(Future.sequence(futures)) {
-                  case Success(results) => EntitiesEvolved(newEnv, results.toList)
+                  case Success(results) => EntitiesEvolved(newEnv, results.toList, true)
                   case Failure(ex)      => TickFailed(ex)
                 }
               }
 
-          case (State(Some(model), RunningStatus, _, Some(conf), currentTick), EntitiesEvolved(newEnv, results)) =>
+          case (State(Some(model), status, _, Some(conf), currentTick), EntitiesEvolved(newEnv, results, scheduleNext)) if status != StoppedStatus =>
             val nextTick = currentTick + 1
             Effect
               .persist(TickAdvanced(newEnv, nextTick))
@@ -110,8 +128,7 @@ object SimulationActor:
 
                 // Publish global tick, environment, and cable load distribution to Kafka
                 publisher.publish(currentTick, newEnv, cableLoads, conf.delta)
-
-                context.scheduleOnce(conf.speed.interval, context.self, TickTimer)
+                if scheduleNext && status == RunningStatus then context.scheduleOnce(conf.speed.interval, context.self, TickTimer)
               }
 
           case (State(_, _, _, Some(conf), _), TickFailed(ex)) =>

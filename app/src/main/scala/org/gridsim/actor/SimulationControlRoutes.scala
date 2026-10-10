@@ -62,12 +62,12 @@ class SimulationControlRoutes(
                       case Right((model, state)) =>
                         val id = UUID.randomUUID().toString
                         val f: Future[SimulationRegistryActor.Registered] = registry.ask(SimulationRegistryActor.RegisterSimulation(id, req.preset, _))
-                        
+
                         onSuccess(f) { _ =>
                           val seededState = state.copy(environment = Environment(LocalDateTime.now()))
                           val conf = SimulationConf(delta = tickDelta)
                           val entityRef = entityRefFor(id)
-                          
+
                           // Initialize the simulation actor
                           entityRef.ask(replyTo => Initialize(model, seededState, conf, replyTo)).map { _ =>
                             entityRef ! Start
@@ -108,6 +108,13 @@ class SimulationControlRoutes(
                 val entityRef = entityRefFor(id)
                 entityRef ! Pause
                 complete(MessageResponse(s"Pause command sent to simulation $id"))
+              }
+            },
+            path("step") {
+              post {
+                val entityRef = entityRefFor(id)
+                entityRef ! Step
+                complete(MessageResponse(s"Step command sent to simulation $id"))
               }
             },
             path("speed") {

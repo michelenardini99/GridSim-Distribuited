@@ -25,6 +25,7 @@ object SimulationProtocol:
   case object Start extends SimulationCommand
   case object Pause extends SimulationCommand
   case object Stop extends SimulationCommand
+  case object Step extends SimulationCommand
 
   final case class UpdateSpeed(speed: SimulationSpeed) extends SimulationCommand
   final case class UpdateTickDelta(delta: FiniteDuration) extends SimulationCommand
@@ -34,7 +35,8 @@ object SimulationProtocol:
 
   final case class EntitiesEvolved(
     newEnv: Environment,
-    results: Iterable[EntityEvolved]
+    results: Iterable[EntityEvolved],
+    scheduleNext: Boolean
   ) extends SimulationCommand
 
   final case class TickFailed(cause: Throwable) extends SimulationCommand

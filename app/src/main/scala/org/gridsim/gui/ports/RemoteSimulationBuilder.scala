@@ -62,7 +62,10 @@ object RemoteSimulationBuilder {
       apiClient.setSimulationSpeed(simId, speed)
       confRef.updateAndGet(_.copy(speed = speed))
     }
-    override def stepOnce(): SimulationState = currentState
+    override def stepOnce(): SimulationState = {
+      apiClient.stepSimulation(simId)
+      currentState
+    }
   }
 
   def build(

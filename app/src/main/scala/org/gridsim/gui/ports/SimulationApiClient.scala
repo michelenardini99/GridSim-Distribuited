@@ -34,6 +34,8 @@ trait SimulationApiClient:
   def startSimulation(id: String): Future[Unit]
   def pauseSimulation(id: String): Future[Unit]
   def stopSimulation(id: String): Future[Unit]
+  def stepSimulation(id: String): Future[Unit]
+
   def getSimulationStatus(id: String): Future[String]
   def setSimulationSpeed(id: String, speed: SimulationSpeed): Future[Unit]
   def setSimulationTickDuration(id: String, delta: FiniteDuration): Future[Unit]
@@ -83,6 +85,8 @@ class HttpSimulationApiClient(config: ClientConfig)(implicit ec: ExecutionContex
 
   override def pauseSimulation(id: String): Future[Unit] = sendCommand(id, "pause")
 
+  override def stepSimulation(id: String): Future[Unit] = sendCommand(id, "step")
+
   override def getSimulationStatus(id: String): Future[String] = Future {
     val req = HttpRequest.newBuilder()
       .uri(URI.create(s"${config.apiEndpoint}/api/simulations/$id/status"))
@@ -131,7 +135,7 @@ class HttpSimulationApiClient(config: ClientConfig)(implicit ec: ExecutionContex
     val response = client.send(req, HttpResponse.BodyHandlers.ofString())
     if (response.statusCode() != 200) throw new RuntimeException(s"API returned ${response.statusCode()}: ${response.body()}")
   }
-  
+
   override def setSimulationTickDuration(id: String, delta: FiniteDuration): Future[Unit] = Future {
     val body = s"""{"deltaSeconds":${delta.toSeconds}}"""
     val req = HttpRequest.newBuilder()
