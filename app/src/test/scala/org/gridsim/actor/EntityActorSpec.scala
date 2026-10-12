@@ -1,7 +1,7 @@
 package org.gridsim.actor
 
 import org.apache.pekko.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
-import org.apache.pekko.persistence.testkit.scaladsl.EventSourcedBehaviorTestKit
+import org.apache.pekko.persistence.testkit.scaladsl.{EventSourcedBehaviorTestKit, PersistenceTestKit}
 import org.apache.pekko.persistence.typed.PersistenceId
 import org.gridsim.actor.EntityActor
 import org.gridsim.actor.EntityActor.*
@@ -43,6 +43,13 @@ class EntityActorSpec
     override def evolve(request: EvolutionRequest): (GridEntityState, Flow[Energy]) =
       lastRequest = Some(request)
       (nextState, flow)
+
+  private class ErrorHandler() extends EntityEvolutionHandler:
+
+    override def supports(request: EvolutionRequest): Boolean = true
+
+    override def evolve(request: EvolutionRequest): (GridEntityState, Flow[Energy]) =
+      throw new IllegalStateException("Error in evolve state")
 
   /** Handler stub whose result depends on the call count, used to prove that the actor
     * threads the previous result back into the next request instead of the initial state. */
@@ -242,4 +249,77 @@ class EntityActorSpec
     )
     snapshotKit.expectNextPersisted(persistenceId.id, State(Some(entity), Some(evolvedStates.last)))
   }
+
+  it should "fail-fast, persist no events, and send no reply when evolve throws an exception" in {
+    val entity = TestEntity("E9")
+    val initialState = TestEntityState("E9", value = 0)
+    val handler = ErrorHandler()
+    val persistenceId = newPersistenceId()
+
+    val actorRef = spawn(EntityActor(persistenceId, _ => handler))
+    val probe = testKit.createTestProbe[Any]()
+
+    actorRef ! Initialize(entity, Some(initialState), probe.ref)
+    probe.expectMessage(Ack)
+
+    actorRef ! Evolve(testEnvironment(), 1.hour, probe.ref)
+
+    probe.expectNoMessage()
+  }
+
+  it should "restart with backoff and recover state when persistence fails" in {
+    val entity = TestEntity("E9")
+    val persistenceTestKit = PersistenceTestKit(system)
+    val initialState = TestEntityState("E9", value = 0)
+    val handler = RecordingHandler(TestEntityState("E10", value = 20), Flow.Balanced)
+    val persistenceId = newPersistenceId()
+    val kit = kitFor(handler, persistenceId)
+
+    val actorRef = spawn(EntityActor(persistenceId, _ => handler))
+    val probe = testKit.createTestProbe[Any]()
+
+    actorRef ! Initialize(entity, Some(initialState), probe.ref)
+    probe.expectMessage(Ack)
+
+
+    persistenceTestKit.failNextPersisted(persistenceId.id)
+
+    actorRef ! Evolve(testEnvironment(), 1.hour, probe.ref)
+
+    Thread.sleep(300)
+
+    actorRef ! Evolve(testEnvironment(), 1.hour, probe.ref)
+
+    val response = probe.receiveMessage()
+    response shouldBe a[EntityEvolved]
+  }
+
+  it should "keep the journal consistent and recover via events even if snapshot saving fails" in {
+    val entity = TestEntity("E9")
+    val initialState = TestEntityState("E9", value = 0)
+    val evolvedStates = (1 to 99).map(i => TestEntityState("E9", value = i)) // 99 Evolve + 1 Init = 100 eventi -> soglia snapshotEvery(100)
+    val handler = SequenceHandler(evolvedStates)
+    val persistenceId = newPersistenceId()
+    val kit = kitFor(handler, persistenceId)
+
+    val persistenceTestKit = PersistenceTestKit(system)
+    val snapshotKit = kit.snapshotTestKit.getOrElse(
+      fail("EventSourcedBehaviorTestKit.config is expected to configure an in-memory snapshot store")
+    )
+
+    kit.runCommand[Ack.type](replyTo => Initialize(entity, Some(initialState), replyTo))
+
+    snapshotKit.failNextPersisted(persistenceId.id)
+
+    evolvedStates.indices.foreach { _ =>
+      kit.runCommand[EntityEvolved](replyTo => Evolve(testEnvironment(), 1.hour, replyTo))
+    }
+
+    val persistedEvents = persistenceTestKit.persistedInStorage(persistenceId.id)
+    persistedEvents should have size (evolvedStates.size + 1) // 100: nessun evento cancellato da withDeleteEventsOnSnapshot, perché lo snapshot non è mai andato a buon fine
+
+    val restarted = kit.restart()
+    restarted.state shouldBe State(Some(entity), Some(evolvedStates.last)) // recovery riesce comunque, puramente da eventi
+  }
 }
+
