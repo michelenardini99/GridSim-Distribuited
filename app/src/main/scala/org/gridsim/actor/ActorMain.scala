@@ -36,7 +36,7 @@ object ActorMain:
     ActorSystem[Nothing](Behaviors.setup[Nothing] { context =>
       implicit val system = context.system
       val sharding = ClusterSharding(system)
-      
+
       // Initialize Default Dispatcher
       val dispatcher = EntityEvolutionDispatcher.default
       val handlerFor = (entity: GridEntity) => new EntityEvolutionHandler:
@@ -50,7 +50,7 @@ object ActorMain:
         val entityId = entityContext.entityId
         // Assuming simulationId is a UUID (36 chars) followed by "-" and localId
         val simulationId = if (entityId.length > 36) entityId.take(36) else entityId
-        
+
         EntityActor(
           PersistenceId(entityContext.entityTypeKey.name, entityId),
           handlerFor,
@@ -62,7 +62,7 @@ object ActorMain:
       sharding.init(Entity(SimulationActor.TypeKey) { entityContext =>
         val simulationId = entityContext.entityId
         val entityRefFor = (localId: String) => sharding.entityRefFor(EntityActor.TypeKey, EntityActor.entityId(simulationId, localId))
-        
+
         SimulationActor(
           PersistenceId(entityContext.entityTypeKey.name, simulationId),
           entityRefFor,
@@ -77,12 +77,12 @@ object ActorMain:
 
       // 4. Start HTTP Server
       val routes = new SimulationControlRoutes(
-        registry, 
+        registry,
         (id: String) => sharding.entityRefFor(SimulationActor.TypeKey, id)
       ).routes
-      
+
       val bindingFuture = Http().newServerAt("0.0.0.0", 8080).bind(routes)
-      
+
       implicit val ec = system.executionContext
       bindingFuture.onComplete {
         case Success(binding) =>

@@ -16,18 +16,19 @@ import scala.util.Try
 final case class SimulationControlUpdate(
   status: String,
   speed: SimulationSpeed,
-  delta: FiniteDuration
+  delta: FiniteDuration,
+  degraded: Boolean
 )
 
 /** Plain-text codec for [[SimulationControlUpdate]] in the form `status|speed|deltaMillis`. */
 object SimulationControlCodec:
 
   def toBinary(update: SimulationControlUpdate): Array[Byte] =
-    s"${update.status}|${update.speed}|${update.delta.toMillis}".getBytes(StandardCharsets.UTF_8)
+    s"${update.status}|${update.speed}|${update.delta.toMillis}|${update.degraded}".getBytes(StandardCharsets.UTF_8)
 
   def fromBinary(bytes: Array[Byte]): Either[String, SimulationControlUpdate] =
     new String(bytes, StandardCharsets.UTF_8).split('|') match
-      case Array(status, speed, deltaMillis) =>
-        Try(SimulationControlUpdate(status, SimulationSpeed.valueOf(speed), deltaMillis.toLong.millis))
+      case Array(status, speed, deltaMillis, degraded) =>
+        Try(SimulationControlUpdate(status, SimulationSpeed.valueOf(speed), deltaMillis.toLong.millis, degraded.toBoolean))
           .toEither.left.map(_.getMessage)
       case _ => Left("Malformed simulation control message")

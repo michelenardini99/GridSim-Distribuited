@@ -10,8 +10,9 @@ import org.gridsim.statistics.StatisticsRegistry
  * Lifecycle status and configuration of a simulation as last reported by the backend.
  *
  * @param stopped whether the simulation has been stopped for good (by any client)
+ * @param degraded whether the backend is currently struggling to advance ticks (e.g. repeated failures/timeouts)
  */
-case class ControlState(status: SimulationControllerState, conf: SimulationConf, stopped: Boolean = false)
+case class ControlState(status: SimulationControllerState, conf: SimulationConf, stopped: Boolean = false, degraded: Boolean = false)
 
 /**
  * Representation of an active simulation loop setup.

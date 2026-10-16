@@ -321,3 +321,6 @@
 .status-stopped {
   -fx-background-color: #dc2626;
 }
+.status-degraded {
+  -fx-background-color: #f97316;
+}

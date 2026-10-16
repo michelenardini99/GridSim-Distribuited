@@ -264,7 +264,7 @@ class SimulationActorSpec
     n2Handler.evolveCount.get() shouldBe 1
   }
 
-  it should "evolve already-advanced entities a second time when a stalled batch is retried" in {
+  it should "not evolve already-advanced entities again when a stalled batch is retried (idempotent retry)" in {
     val publisher = new RecordingSimulationTickPublisher()
     val n1PersistenceId = PersistenceId(EntityActor.TypeKey.name, UUID.randomUUID().toString)
     val n2PersistenceId = PersistenceId(EntityActor.TypeKey.name, UUID.randomUUID().toString)
@@ -294,7 +294,7 @@ class SimulationActorSpec
     kit.runCommand[Ack.type](replyTo => Initialize(model, initState, fastConf, replyTo))
     kit.runCommand(Start)
 
-    // Let the first batch time out and at least one automatic retry (same currentTick, since
+    // Let the first batch time out and several automatic retries (same currentTick, since
     // TickAdvanced is never persisted) run to completion.
     Thread.sleep(900)
 
@@ -302,15 +302,63 @@ class SimulationActorSpec
     val n1Events = persistenceTestKit.persistedInStorage(n1PersistenceId.id)
     val n2Events = persistenceTestKit.persistedInStorage(n2PersistenceId.id)
 
-    // More than one Evolved for the SAME logical tick: double-counting caused by the
-    // unconditional retry, which re-asks every entity (including the ones already advanced).
-    n1Events.size should be > 2 // Initialized + more than one Evolved
-    n2Events.size should be > 2
-    n1Handler.evolveCount.get() should be > 1
-    n2Handler.evolveCount.get() should be > 1
+    n1Events.size shouldBe 2 // Initialized + a single Evolved
+    n2Events.size shouldBe 2
+    n1Handler.evolveCount.get() shouldBe 1
+    n2Handler.evolveCount.get() shouldBe 1
 
     // The orchestrator itself never progresses, since the straggler never responds.
     kit.getState().tick shouldBe 0L
+  }
+
+  it should "publish a Degraded control update after repeated TickFailed and clear it once a tick succeeds again" in {
+    val controlUpdates = scala.collection.mutable.ListBuffer.empty[SimulationControlUpdate]
+    val controlPublisher = new SimulationControlPublisher:
+      override def publish(update: SimulationControlUpdate): Unit = controlUpdates.synchronized(controlUpdates += update)
+
+    @volatile var respond = false
+    def flakyEntityRef(id: String): EntityRef[EntityCommand] =
+      TestEntityRef(
+        EntityActor.TypeKey,
+        id,
+        testKit.spawn(Behaviors.receiveMessage[EntityCommand] {
+          case org.gridsim.actor.protocol.EntityProtocol.Initialize(_, _, replyTo) =>
+            replyTo ! org.gridsim.actor.protocol.EntityProtocol.Ack
+            Behaviors.same
+          case Evolve(_, _, replyTo, _) =>
+            if respond then replyTo ! EntityEvolved(id, Flow.Balanced)
+            Behaviors.same
+          case _ => Behaviors.same
+        })
+      )
+
+    val kit = EventSourcedBehaviorTestKit[SimulationCommand, SimulationEvent, SimulationActor.State](
+      testKit.system,
+      SimulationActor(
+        newPersistenceId(),
+        id => flakyEntityRef(id),
+        tickTimeout = 100.millis,
+        controlPublisher = controlPublisher,
+        retryBaseBackoff = 50.millis,
+        retryMaxBackoff = 50.millis,
+        degradedThreshold = 2
+      ),
+      EventSourcedBehaviorTestKit.SerializationSettings.disabled
+    )
+    val initState = SimulationState(env, Map.empty, Map.empty, Map.empty)
+
+    kit.runCommand[Ack.type](replyTo => Initialize(model, initState, conf, replyTo))
+    kit.runCommand(Start)
+
+    Thread.sleep(900)
+    controlUpdates.synchronized(controlUpdates.toList).exists(_.degraded) shouldBe true
+
+    respond = true
+    Thread.sleep(500)
+
+    val updates = controlUpdates.synchronized(controlUpdates.toList)
+    updates.last.degraded shouldBe false
+    kit.getState().tick shouldBe 1L
   }
 
   it should "restart with backoff after a TickAdvanced persistence failure and re-arm the TickTimer once recovered" in {

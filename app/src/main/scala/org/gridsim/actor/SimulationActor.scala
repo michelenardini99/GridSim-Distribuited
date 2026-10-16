@@ -11,7 +11,7 @@ import org.apache.pekko.persistence.typed.RecoveryCompleted
 import org.apache.pekko.util.Timeout
 import org.gridsim.actor.SimulationActor.Status.{IdleStatus, PausedStatus, RunningStatus, StoppedStatus}
 import org.gridsim.actor.protocol.EntityProtocol.{EntityCommand, EntityEvolved, Evolve}
-import org.gridsim.actor.protocol.SimulationProtocol.{Step, Stop, Ack, EntitiesEvolved, Initialize, Initialized, Pause, Paused, SimulationCommand, SimulationEvent, SpeedUpdated, Start, Started, Stopped, TickAdvanced, TickDeltaUpdated, TickFailed, TickTimer, UpdateSpeed, UpdateTickDelta}
+import org.gridsim.actor.protocol.SimulationProtocol.{Ack, EntitiesEvolved, Initialize, Initialized, Pause, Paused, SimulationCommand, SimulationEvent, SpeedUpdated, Start, Started, Step, Stop, Stopped, TickAdvanced, TickDeltaUpdated, TickFailed, TickTimer, UpdateSpeed, UpdateTickDelta}
 import org.gridsim.actor.telemetry.{SimulationControlPublisher, SimulationTickPublisher, TelemetryPublisher}
 import org.gridsim.core.common.Power
 import org.gridsim.core.model.{Environment, GridEntityState}
@@ -19,8 +19,9 @@ import org.gridsim.core.observability.serialization.SimulationControlUpdate
 import org.gridsim.core.simulation.{SimulationConf, SimulationModel, SimulationState, interval}
 import org.gridsim.core.solver.PowerFlowSolver
 
+import java.util.concurrent.TimeUnit
 import scala.concurrent.{ExecutionContext, Future}
-import scala.concurrent.duration.{DurationInt, FiniteDuration}
+import scala.concurrent.duration.{Duration, DurationInt, DurationLong, FiniteDuration, SECONDS}
 import scala.util.{Failure, Success}
 
 object SimulationActor:
@@ -42,15 +43,19 @@ object SimulationActor:
     entityRefFor: String => EntityRef[EntityCommand],
     tickTimeout: FiniteDuration,
     publisher: SimulationTickPublisher = TelemetryPublisher.NoOpSimulationTickPublisher,
-    controlPublisher: SimulationControlPublisher = TelemetryPublisher.NoOpSimulationControlPublisher
+    controlPublisher: SimulationControlPublisher = TelemetryPublisher.NoOpSimulationControlPublisher,
+    retryBaseBackoff: FiniteDuration = 1.seconds,
+    retryMaxBackoff: FiniteDuration = 30.seconds,
+    degradedThreshold: Int = 3,
   ): Behavior[SimulationCommand] =
     Behaviors.setup { context =>
       implicit val ec: ExecutionContext = context.executionContext
-
+      var consecutiveFailures: Int = 0
+      var degraded: Boolean = false
       // Broadcast the current lifecycle/configuration so every connected client can sync its controls
       def publishControl(state: State): Unit =
         state.conf.foreach { conf =>
-          controlPublisher.publish(SimulationControlUpdate(state.status.toString, conf.speed, conf.delta))
+          controlPublisher.publish(SimulationControlUpdate(state.status.toString, conf.speed, conf.delta, degraded))
         }
 
       EventSourcedBehavior[SimulationCommand, SimulationEvent, State](
@@ -139,9 +144,15 @@ object SimulationActor:
 
           case (State(Some(model), status, _, Some(conf), currentTick), EntitiesEvolved(newEnv, results, scheduleNext)) if status != StoppedStatus =>
             val nextTick = currentTick + 1
+            consecutiveFailures = 0
+            val wasDegraded = degraded
+            if degraded then degraded = false
             Effect
               .persist(TickAdvanced(newEnv, nextTick))
-              .thenRun { _ =>
+              .thenRun { newState =>
+                // Tell clients the simulation has recovered, now that a tick has gone through again
+                if wasDegraded then publishControl(newState)
+
                 val flows = results.map(r => r.id -> r.flow).toMap
                 val flowSolver = org.gridsim.core.solver.KirchhoffPowerFlowSolver(model.grid)
                 val cableLoads = flowSolver.solve(flows).toMap
@@ -151,11 +162,25 @@ object SimulationActor:
                 if scheduleNext && status == RunningStatus then context.scheduleOnce(conf.speed.interval, context.self, TickTimer)
               }
 
-          case (State(_, _, _, Some(conf), _), TickFailed(ex)) =>
+          case (State(_, RunningStatus, _, Some(conf), _), TickFailed(ex)) =>
             context.log.warn("Tick failed, retrying", ex)
+            consecutiveFailures += 1
+            val justDegraded = !degraded && consecutiveFailures >= degradedThreshold
+            if justDegraded then degraded = true
+            val backoffMillis = (retryBaseBackoff.toMillis * math.pow(2, consecutiveFailures - 1)).toLong
+            val delay: FiniteDuration = backoffMillis.min(retryMaxBackoff.toMillis).millis
             Effect
               .none
-              .thenRun(_ => context.scheduleOnce(conf.speed.interval, context.self, TickTimer))
+              .thenRun { st =>
+                // Tell clients the simulation is struggling, but only on the transition into Degraded
+                if justDegraded then publishControl(st)
+                context.scheduleOnce(delay, context.self, TickTimer)
+              }
+
+          case (State(_, _, _, Some(conf), _), TickFailed(ex)) =>
+            context.log.warn("Tick failed", ex)
+            Effect
+              .none
 
           case (State(_, status, _, _, _), org.gridsim.actor.protocol.SimulationProtocol.GetStatus(replyTo)) =>
             replyTo ! status.toString

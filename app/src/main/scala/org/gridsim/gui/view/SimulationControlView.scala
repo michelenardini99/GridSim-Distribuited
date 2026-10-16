@@ -30,6 +30,11 @@ class SimulationControlView(viewModel: SimulationControlViewModel) extends HBox(
     text <== viewModel.statusText
     styleClass += "status-badge"
 
+  private val degradedLabel = new Label("⚠ DEGRADED"):
+    styleClass ++= Seq("status-badge", "status-degraded")
+    visible <== viewModel.degradedProperty
+    managed <== viewModel.degradedProperty
+
   private val playPauseButton = new Button:
     text <== viewModel.playPauseText
     disable <== viewModel.playPauseDisabled
@@ -124,6 +129,7 @@ class SimulationControlView(viewModel: SimulationControlViewModel) extends HBox(
   children = Seq(
     statusPrefix,
     statusLabel,
+    degradedLabel,
     new Label(" | "):
       styleClass += "muted-text"
     ,

@@ -21,6 +21,9 @@ class SimulationControlViewModel(
 ):
   private val stoppedProperty = BooleanProperty(false)
 
+  /** True while the backend reports the simulation as degraded (struggling to advance ticks). */
+  val degradedProperty: BooleanProperty = BooleanProperty(false)
+
   /** Text showing the action for the Play/Pause button ("Play" or "Pause"). */
   val playPauseText: StringProperty = StringProperty("Play")
 
@@ -119,6 +122,7 @@ class SimulationControlViewModel(
    */
   def syncWith(control: ControlState): Unit =
     if control.stopped then stoppedProperty.value = true
+    degradedProperty.value = control.degraded
     syncingFromRemote = true
     try
       selectedSpeed.value = control.conf.speed
