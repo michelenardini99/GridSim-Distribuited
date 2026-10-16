@@ -31,6 +31,9 @@ object ActorMain:
       pekko.persistence.journal.plugin = "pekko.persistence.journal.inmem"
       pekko.persistence.snapshot-store.plugin = "pekko.persistence.snapshot-store.local"
       pekko.persistence.snapshot-store.local.dir = "target/snapshots"
+      pekko.cluster.downing-provider-class = "org.apache.pekko.cluster.sbr.SplitBrainResolverProvider"
+      pekko.cluster.split-brain-resolver.active-strategy = keep-majority
+      pekko.cluster.split-brain-resolver.stable-after = 10s
     """).withFallback(ConfigFactory.load())
 
     ActorSystem[Nothing](Behaviors.setup[Nothing] { context =>
