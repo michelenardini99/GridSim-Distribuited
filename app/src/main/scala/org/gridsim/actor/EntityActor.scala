@@ -19,7 +19,12 @@ object EntityActor:
 
   def entityId(simulationId: String, localId: String): String = s"$simulationId-$localId"
 
-  final case class State(config: Option[GridEntity], dynamic: Option[GridEntityState])
+  final case class State(
+    config: Option[GridEntity],
+    dynamic: Option[GridEntityState],
+    lastFlow: Option[Flow[Energy]],
+    lastTick: Option[Long]
+  )
 
   def apply(
     persistenceId: PersistenceId,
@@ -28,19 +33,22 @@ object EntityActor:
   ): Behavior[EntityCommand] =
     EventSourcedBehavior[EntityCommand, EntityEvent, State](
       persistenceId,
-      emptyState = State(None, None),
+      emptyState = State(None, None, None, None),
       commandHandler = (state, command) => {
         (state, command) match
-          case (State(None, _), Initialize(entity, initialState, replyTo)) =>
+          case (State(None, _, _, _), Initialize(entity, initialState, replyTo)) =>
             Effect
               .persist(Initialized(entity, initialState))
               .thenRun(_ => replyTo ! Ack)
-          case (State(Some(entity), dyn), Evolve(env, delta, replyTo, tick)) =>
+          case (State(Some(entity), dyn, lastFlow, lastTick), Evolve(env, delta, replyTo, tick)) =>
             dyn match {
+              case Some(state) if lastTick.nonEmpty && tick <= lastTick.get =>
+                replyTo ! EntityEvolved(entity.id, lastFlow.get)
+                Effect.none
               case Some(state) =>
                 val (newState, flow) = handlerFor(entity).evolve(EvolutionRequest(entity, state, env, delta))
                 Effect
-                  .persist(Evolved(newState, flow))
+                  .persist(Evolved(newState, flow, tick))
                   .thenRun { _ =>
                     publisher.publish(entity.id, tick, newState, flow)
                     replyTo ! EntityEvolved(entity.id, flow)
@@ -54,8 +62,8 @@ object EntityActor:
       },
       eventHandler = (state, event) => {
        event match
-          case Initialized(entity, initialState) => State(Some(entity), initialState)
-          case Evolved(newState, _) => state.copy(dynamic = Some(newState))
+          case Initialized(entity, initialState) => state.copy(config = Some(entity), dynamic = initialState)
+          case Evolved(newState, flow, tick) => state.copy(dynamic = Some(newState), lastFlow = Some(flow), lastTick = Some(tick))
       }
     )
     .withRetention(

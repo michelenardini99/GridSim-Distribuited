@@ -38,5 +38,6 @@ object EntityProtocol:
 
   final case class Evolved(
     newState: GridEntityState,
-    flow: Flow[Energy]
+    flow: Flow[Energy],
+    tick: Long = 0L
   ) extends EntityEvent

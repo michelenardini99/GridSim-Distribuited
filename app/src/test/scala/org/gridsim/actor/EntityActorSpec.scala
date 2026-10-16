@@ -64,6 +64,20 @@ class EntityActorSpec
       if callCount == 2 then stateSeenOnSecondCall = Some(request.state)
       (results(callCount - 1), Flow.Balanced)
 
+  /** Handler stub returning a different result on every call, used to prove that a retried/duplicate
+    * tick is served from the cache instead of actually re-invoking the handler. If the actor were to
+    * (incorrectly) call evolve a second time for the same tick, the second result in `results` would
+    * leak into the reply/state instead of the cached first one. */
+  private class VariableFlowHandler(results: Seq[(GridEntityState, Flow[Energy])]) extends EntityEvolutionHandler:
+    private var callCount = 0
+
+    override def supports(request: EvolutionRequest): Boolean = true
+
+    override def evolve(request: EvolutionRequest): (GridEntityState, Flow[Energy]) =
+      val result = results(callCount)
+      callCount += 1
+      result
+
   /** Every test gets its own persistence id so tests don't share journal/snapshot storage. */
   private def newPersistenceId(): PersistenceId =
     PersistenceId(EntityActor.TypeKey.name, UUID.randomUUID().toString)
@@ -88,7 +102,7 @@ class EntityActorSpec
 
     result.hasNoEvents shouldBe true
     probe.expectNoMessage()
-    kit.getState() shouldBe State(None, None)
+    kit.getState() shouldBe State(None, None, None, None)
   }
 
   it should "persist Initialized and reply with Ack the first time it is initialized" in {
@@ -101,7 +115,7 @@ class EntityActorSpec
 
     result.reply shouldBe Ack
     result.event shouldBe Initialized(entity, Some(initialState))
-    result.state shouldBe State(Some(entity), Some(initialState))
+    result.state shouldBe State(Some(entity), Some(initialState), None, None)
   }
 
   it should "ignore a second Initialize once the entity is already initialized" in {
@@ -119,7 +133,7 @@ class EntityActorSpec
 
     result.hasNoEvents shouldBe true
     probe.expectNoMessage()
-    kit.getState() shouldBe State(Some(entity), Some(initialState))
+    kit.getState() shouldBe State(Some(entity), Some(initialState), None, None)
   }
 
 
@@ -134,8 +148,8 @@ class EntityActorSpec
     val result = kit.runCommand[EntityEvolved](replyTo => Evolve(testEnvironment(), 1.hour, replyTo))
 
     result.reply shouldBe EntityEvolved(entity.id, Surplus(2.kwh))
-    result.event shouldBe Evolved(evolvedState, Surplus(2.kwh))
-    result.state shouldBe State(Some(entity), Some(evolvedState))
+    result.event shouldBe Evolved(evolvedState, Surplus(2.kwh), 0L)
+    result.state shouldBe State(Some(entity), Some(evolvedState), Some(Surplus(2.kwh)), Some(0L))
   }
 
   it should "forward entity, current state, environment and delta to the handler unchanged" in {
@@ -169,6 +183,57 @@ class EntityActorSpec
     second.reply shouldBe EntityEvolved(entity.id, Flow.Balanced)
 
     handler.stateSeenOnSecondCall shouldBe Some(afterFirst)
+  }
+
+  it should "treat a retried Evolve for an already-processed tick (tick > 0) as idempotent, replying with the cached flow without persisting or recomputing" in {
+    val entity = TestEntity("E_RETRY")
+    val initialState = TestEntityState("E_RETRY", value = 0)
+    val evolvedState = TestEntityState("E_RETRY", value = 1)
+    val neverReachedState = TestEntityState("E_RETRY", value = 999)
+    // The second entry would only be reached if the actor (incorrectly) re-invoked the handler on retry.
+    val handler = VariableFlowHandler(Seq(
+      (evolvedState, Surplus(3.kwh)),
+      (neverReachedState, Surplus(99.kwh))
+    ))
+    val kit = kitFor(handler)
+
+    kit.runCommand[Ack.type](replyTo => Initialize(entity, Some(initialState), replyTo))
+
+    val first = kit.runCommand[EntityEvolved](replyTo => Evolve(testEnvironment(), 1.hour, replyTo, 5L))
+    first.reply shouldBe EntityEvolved(entity.id, Surplus(3.kwh))
+    first.event shouldBe Evolved(evolvedState, Surplus(3.kwh), 5L)
+    first.state shouldBe State(Some(entity), Some(evolvedState), Some(Surplus(3.kwh)), Some(5L))
+
+    // Orchestrator retries the same tick after a partial-batch TickFailed (see SimulationActor)
+    val retry = kit.runCommand[EntityEvolved](replyTo => Evolve(testEnvironment(), 1.hour, replyTo, 5L))
+
+    retry.hasNoEvents shouldBe true
+    retry.reply shouldBe EntityEvolved(entity.id, Surplus(3.kwh))
+    retry.state shouldBe first.state
+  }
+
+  it should "treat a stale Evolve for a tick older than the last processed one as idempotent too" in {
+    val entity = TestEntity("E_STALE")
+    val initialState = TestEntityState("E_STALE", value = 0)
+    val evolvedState = TestEntityState("E_STALE", value = 1)
+    val neverReachedState = TestEntityState("E_STALE", value = 999)
+    val handler = VariableFlowHandler(Seq(
+      (evolvedState, Surplus(3.kwh)),
+      (neverReachedState, Surplus(99.kwh))
+    ))
+    val kit = kitFor(handler)
+
+    kit.runCommand[Ack.type](replyTo => Initialize(entity, Some(initialState), replyTo))
+
+    val first = kit.runCommand[EntityEvolved](replyTo => Evolve(testEnvironment(), 1.hour, replyTo, 5L))
+    first.reply shouldBe EntityEvolved(entity.id, Surplus(3.kwh))
+
+    // A late/duplicate message for an older tick arrives after tick 5 was already processed
+    val stale = kit.runCommand[EntityEvolved](replyTo => Evolve(testEnvironment(), 1.hour, replyTo, 3L))
+
+    stale.hasNoEvents shouldBe true
+    stale.reply shouldBe EntityEvolved(entity.id, Surplus(3.kwh))
+    stale.state shouldBe first.state
   }
 
   it should "report a deficit flow returned by the handler as-is" in {
@@ -227,7 +292,7 @@ class EntityActorSpec
 
     val restarted = kit.restart()
 
-    restarted.state shouldBe State(Some(entity), Some(afterEvolve))
+    restarted.state shouldBe State(Some(entity), Some(afterEvolve), Some(Flow.Balanced), Some(0L))
   }
 
   it should "persist a snapshot once the configured retention threshold (100 persisted events) is reached" in {
@@ -240,14 +305,16 @@ class EntityActorSpec
     val kit = kitFor(handler, persistenceId)
 
     kit.runCommand[Ack.type](replyTo => Initialize(entity, Some(initialState), replyTo))
-    evolvedStates.indices.foreach { _ =>
-      kit.runCommand[EntityEvolved](replyTo => Evolve(testEnvironment(), 1.hour, replyTo))
+    // Ticks must strictly increase: a repeated/non-increasing tick is treated as an idempotent retry
+    evolvedStates.indices.foreach { i =>
+      kit.runCommand[EntityEvolved](replyTo => Evolve(testEnvironment(), 1.hour, replyTo, i.toLong))
     }
 
     val snapshotKit = kit.snapshotTestKit.getOrElse(
       fail("EventSourcedBehaviorTestKit.config is expected to configure an in-memory snapshot store")
     )
-    snapshotKit.expectNextPersisted(persistenceId.id, State(Some(entity), Some(evolvedStates.last)))
+    val lastTick = (evolvedStates.size - 1).toLong
+    snapshotKit.expectNextPersisted(persistenceId.id, State(Some(entity), Some(evolvedStates.last), Some(Flow.Balanced), Some(lastTick)))
   }
 
   it should "fail-fast, persist no events, and send no reply when evolve throws an exception" in {
@@ -311,15 +378,17 @@ class EntityActorSpec
 
     snapshotKit.failNextPersisted(persistenceId.id)
 
-    evolvedStates.indices.foreach { _ =>
-      kit.runCommand[EntityEvolved](replyTo => Evolve(testEnvironment(), 1.hour, replyTo))
+    // Ticks must strictly increase: a repeated/non-increasing tick is treated as an idempotent retry
+    evolvedStates.indices.foreach { i =>
+      kit.runCommand[EntityEvolved](replyTo => Evolve(testEnvironment(), 1.hour, replyTo, i.toLong))
     }
 
     val persistedEvents = persistenceTestKit.persistedInStorage(persistenceId.id)
     persistedEvents should have size (evolvedStates.size + 1) // 100: nessun evento cancellato da withDeleteEventsOnSnapshot, perché lo snapshot non è mai andato a buon fine
 
     val restarted = kit.restart()
-    restarted.state shouldBe State(Some(entity), Some(evolvedStates.last)) // recovery riesce comunque, puramente da eventi
+    val lastTick = (evolvedStates.size - 1).toLong
+    restarted.state shouldBe State(Some(entity), Some(evolvedStates.last), Some(Flow.Balanced), Some(lastTick)) // recovery riesce comunque, puramente da eventi
   }
 }
 
