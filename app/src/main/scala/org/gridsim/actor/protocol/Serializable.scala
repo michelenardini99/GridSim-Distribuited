@@ -1,3 +1,3 @@
 package org.gridsim.actor.protocol
 
-trait Serializable
+trait Serializable extends java.io.Serializable

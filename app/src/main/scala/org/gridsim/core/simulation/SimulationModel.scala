@@ -11,4 +11,4 @@ import org.gridsim.core.model.network.GridGraph
  *
  * @param grid the static entities and cable topology of the simulated micro-grid
  */
-final case class SimulationModel(grid: GridGraph)
+final case class SimulationModel(grid: GridGraph) extends org.gridsim.actor.protocol.Serializable

@@ -8,7 +8,7 @@ import org.gridsim.core.behaviour.house.ConsumptionBand
  * A strategy provides the [[ConsumptionBand]] (statistical parameters) for each hour,
  * allowing the execution engine to handle stochasticity and energy conversions.
  */
-trait ConsumptionStrategy:
+trait ConsumptionStrategy extends java.io.Serializable:
   /**
    * Provides the statistical consumption parameters for a given hour.
    *

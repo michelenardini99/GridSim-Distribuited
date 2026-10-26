@@ -14,9 +14,9 @@ import scala.concurrent.duration.{DurationInt, FiniteDuration}
 case class SimulationConf(
   delta: FiniteDuration,
   speed: SimulationSpeed = Normal
-)
+) extends org.gridsim.actor.protocol.Serializable
 
-enum SimulationSpeed:
+enum SimulationSpeed extends org.gridsim.actor.protocol.Serializable:
   case Slow
   case Normal
   case Speed

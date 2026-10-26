@@ -23,4 +23,4 @@ final case class SimulationState(
   entityStates: Map[String, GridEntityState],
   entityFlows: Map[String, Flow[Energy]] = Map.empty,
   cableLoads: Map[Cable, Energy] = Map.empty
-)
+) extends org.gridsim.actor.protocol.Serializable

@@ -27,7 +27,7 @@ object EntityProtocol:
   final case class EntityEvolved(
     id: String,
     flow: Flow[Energy]
-  )
+  ) extends Serializable
 
   sealed trait EntityEvent extends Serializable
 

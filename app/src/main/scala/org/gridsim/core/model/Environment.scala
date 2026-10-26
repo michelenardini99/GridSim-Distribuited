@@ -36,7 +36,7 @@ object WeatherConditions:
  * query the environment to calculate their production or consumption for the
  * current tick.
  */
-trait Environment:
+trait Environment extends java.io.Serializable:
   /** The calendar moment the simulation started at (tick 0). */
   def startDateTime: LocalDateTime
 

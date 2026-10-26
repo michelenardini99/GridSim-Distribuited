@@ -7,7 +7,7 @@ package org.gridsim.core.common
  * system. Latitude ranges from -90° (South Pole) to +90° (North Pole),
  * while longitude ranges from -180° to +180°.
  */
-trait GeographicPoint:
+trait GeographicPoint extends java.io.Serializable:
   def latitude: Double
   def longitude: Double
 
