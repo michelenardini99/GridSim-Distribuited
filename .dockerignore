@@ -1,0 +1,12 @@
+.git
+.gradle
+.bloop
+.metals
+.vscode
+.idea
+**/build
+**/target
+**/bin
+docs
+_layouts
+
