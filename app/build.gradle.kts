@@ -68,6 +68,7 @@ dependencies {
     implementation(libs.pekko.persistence.typed)
     implementation(libs.pekko.http)
     implementation(libs.pekko.http.spray.json)
+    implementation(libs.jedis)
     testImplementation(libs.pekko.actor.testkit.typed)
     testImplementation(libs.pekko.persistence.testkit)
     testImplementation(libs.pekko.http.testkit)

@@ -69,5 +69,29 @@ class SimulationRegistryActorTest extends ScalaTestWithActorTestKit with AnyWord
       response.simulations should have size 1
       response.simulations.head shouldBe SimulationInfo("uuid-2", "preset_2")
     }
+
+    "persist and recover registered simulations across restarts when using persistent behavior" in {
+      val pid = org.apache.pekko.persistence.typed.PersistenceId.ofUniqueId("test-registry-1")
+      val config = com.typesafe.config.ConfigFactory.parseString("""
+        pekko.persistence.journal.plugin = "pekko.persistence.journal.inmem"
+      """).withFallback(testKit.system.settings.config)
+      val persistentKit = org.apache.pekko.actor.testkit.typed.scaladsl.ActorTestKit(config)
+      try {
+        val registry1 = persistentKit.spawn(SimulationRegistryActor.persistent(pid))
+        val regProbe = persistentKit.createTestProbe[Registered]()
+        registry1 ! RegisterSimulation("uuid-persisted", "solar-farm-grid", regProbe.ref)
+        regProbe.expectMessage(Registered("uuid-persisted"))
+
+        persistentKit.stop(registry1)
+
+        // Respawn with same PersistenceId and verify state is recovered
+        val registry2 = persistentKit.spawn(SimulationRegistryActor.persistent(pid))
+        val getProbe = persistentKit.createTestProbe[SimulationsList]()
+        registry2 ! GetSimulations(getProbe.ref)
+        getProbe.expectMessage(SimulationsList(List(SimulationInfo("uuid-persisted", "solar-farm-grid"))))
+      } finally {
+        persistentKit.shutdownTestKit()
+      }
+    }
   }
 }

@@ -25,7 +25,7 @@ import scala.concurrent.duration.{Duration, DurationInt, DurationLong, FiniteDur
 import scala.util.{Failure, Success}
 
 object SimulationActor:
-  enum Status:
+  enum Status extends org.gridsim.actor.protocol.Serializable:
     case IdleStatus, RunningStatus, PausedStatus, StoppedStatus
 
   val TypeKey: EntityTypeKey[SimulationCommand] = EntityTypeKey("SimulationActor")
@@ -36,7 +36,7 @@ object SimulationActor:
     env: Option[Environment],
     conf: Option[SimulationConf],
     tick: Long = 0L
-  )
+  ) extends org.gridsim.actor.protocol.Serializable
 
   def apply(
     persistenceId: PersistenceId,

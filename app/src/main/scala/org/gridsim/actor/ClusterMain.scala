@@ -83,6 +83,9 @@ object ClusterMain:
       sys.env.get("HTTP_PORT").flatMap(_.toIntOption).getOrElse(8080)
     val kafkaServers =
       sys.env.getOrElse("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+    val redisHost = sys.env.getOrElse("REDIS_HOST", "localhost")
+    val redisPort =
+      sys.env.get("REDIS_PORT").flatMap(_.toIntOption).getOrElse(6379)
     val serviceName = sys.env.get("CLUSTER_SERVICE_NAME")
     val explicitSeeds = sys.env.get("PEKKO_SEED_NODES")
 
@@ -98,9 +101,20 @@ object ClusterMain:
       pekko.remote.artery.canonical.hostname = "$hostname"
       pekko.remote.artery.canonical.port = $port
       pekko.cluster.seed-nodes = $seedNodesHocon
-      pekko.persistence.journal.plugin = "pekko.persistence.journal.inmem"
-      pekko.persistence.snapshot-store.plugin = "pekko.persistence.snapshot-store.local"
-      pekko.persistence.snapshot-store.local.dir = "target/snapshots"
+      pekko.persistence.journal.plugin = "gridsim.persistence.redis.journal"
+      pekko.persistence.snapshot-store.plugin = "gridsim.persistence.redis.snapshot"
+      gridsim.persistence.redis.journal {
+        class = "org.gridsim.actor.persistence.RedisJournal"
+        plugin-dispatcher = "pekko.actor.default-dispatcher"
+        host = "$redisHost"
+        port = $redisPort
+      }
+      gridsim.persistence.redis.snapshot {
+        class = "org.gridsim.actor.persistence.RedisSnapshotStore"
+        plugin-dispatcher = "pekko.actor.default-dispatcher"
+        host = "$redisHost"
+        port = $redisPort
+      }
       pekko.cluster.downing-provider-class = "org.apache.pekko.cluster.sbr.SplitBrainResolverProvider"
       pekko.cluster.split-brain-resolver.active-strategy = keep-majority
       pekko.cluster.split-brain-resolver.stable-after = 10s
@@ -144,34 +158,39 @@ object ClusterMain:
           )
         })
 
-        // 2. Initialize SimulationActor Sharding
-        sharding.init(Entity(SimulationActor.TypeKey) { entityContext =>
-          val simulationId = entityContext.entityId
-          val entityRefFor = (localId: String) =>
-            sharding.entityRefFor(
-              EntityActor.TypeKey,
-              EntityActor.entityId(simulationId, localId)
-            )
+        // 2. Initialize SimulationActor Sharding (rememberEntities = true so active simulations automatically respawn on rebalance/failover)
+        sharding.init(
+          Entity(SimulationActor.TypeKey) { entityContext =>
+            val simulationId = entityContext.entityId
+            val entityRefFor = (localId: String) =>
+              sharding.entityRefFor(
+                EntityActor.TypeKey,
+                EntityActor.entityId(simulationId, localId)
+              )
 
-          SimulationActor(
-            PersistenceId(entityContext.entityTypeKey.name, simulationId),
-            entityRefFor,
-            1.second,
-            new KafkaSimulationTickPublisher(
-              kafkaProducer,
-              s"grid.ticks.$simulationId"
-            ),
-            new KafkaSimulationControlPublisher(
-              kafkaProducer,
-              simulationId,
-              s"grid.control.$simulationId"
+            SimulationActor(
+              PersistenceId(entityContext.entityTypeKey.name, simulationId),
+              entityRefFor,
+              1.second,
+              new KafkaSimulationTickPublisher(
+                kafkaProducer,
+                s"grid.ticks.$simulationId"
+              ),
+              new KafkaSimulationControlPublisher(
+                kafkaProducer,
+                simulationId,
+                s"grid.control.$simulationId"
+              )
             )
+          }.withSettings(
+            org.apache.pekko.cluster.sharding.typed.ClusterShardingSettings(system)
+              .withRememberEntities(true)
           )
-        })
+        )
 
-        // 3. Elect / Connect to the Master SimulationRegistryActor via ClusterSingleton
+        // 3. Elect / Connect to the Master SimulationRegistryActor via ClusterSingleton (event-sourced in Redis)
         val registryProxy = singletonManager.init(
-          SingletonActor(SimulationRegistryActor(), "SimulationRegistry")
+          SingletonActor(SimulationRegistryActor.persistent(), "SimulationRegistry")
         )
 
         // 4. Start HTTP Server on every replica (routed via ClusterSingleton and ClusterSharding)

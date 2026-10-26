@@ -24,7 +24,7 @@ object EntityActor:
     dynamic: Option[GridEntityState],
     lastFlow: Option[Flow[Energy]],
     lastTick: Option[Long]
-  )
+  ) extends org.gridsim.actor.protocol.Serializable
 
   def apply(
     persistenceId: PersistenceId,
