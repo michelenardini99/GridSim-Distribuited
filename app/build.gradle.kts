@@ -245,6 +245,13 @@ tasks.register<JavaExec>("runBackend") {
     classpath = sourceSets["main"].runtimeClasspath
 }
 
+tasks.register<JavaExec>("runCluster") {
+    group = "application"
+    description = "Run the Clustered Simulation Backend with automatic master election"
+    mainClass = "org.gridsim.actor.ClusterMain"
+    classpath = sourceSets["main"].runtimeClasspath
+}
+
 tasks.register<JavaExec>("runGui") {
     group = "application"
     description = "Run the GridSim Graphical User Interface"
