@@ -190,6 +190,56 @@ val stopKafkaContainer by tasks.registering {
     }
 }
 
+var redisContainerSpawned = false
+val redisContainerName = "gridsim-redis-test"
+
+val startRedisContainer by tasks.registering {
+    group = "verification"
+    description = "Starts a Redis Docker container for integration tests if not already running."
+    doLast {
+        if (isPortOpen("127.0.0.1", 6379)) {
+            logger.lifecycle("Redis is already running on port 6379; reusing existing instance.")
+            redisContainerSpawned = false
+        } else {
+            logger.lifecycle("Redis is not running on port 6379. Starting Docker container '$redisContainerName' using redis:7-alpine...")
+            runProcess("docker", "rm", "-f", redisContainerName)
+            val (exitCode, output) = runProcess("docker", "run", "-d", "--name", redisContainerName, "-p", "6379:6379", "redis:7-alpine")
+            if (exitCode != 0) {
+                throw GradleException("Failed to start Redis Docker container: $output")
+            }
+            redisContainerSpawned = true
+
+            val timeoutMillis = 30_000L
+            val startTime = System.currentTimeMillis()
+            var ready = false
+            logger.lifecycle("Waiting for Redis container to accept connections on port 6379...")
+            while (!ready && System.currentTimeMillis() - startTime < timeoutMillis) {
+                Thread.sleep(1000)
+                if (isPortOpen("127.0.0.1", 6379)) {
+                    ready = true
+                }
+            }
+            if (!ready) {
+                throw GradleException("Timed out waiting for Redis Docker container '$redisContainerName' to become ready on port 6379.")
+            }
+            logger.lifecycle("Redis container is ready on port 6379.")
+        }
+    }
+}
+
+val stopRedisContainer by tasks.registering {
+    group = "verification"
+    description = "Stops the Redis Docker container if it was started by Gradle."
+    doLast {
+        if (redisContainerSpawned) {
+            logger.lifecycle("Stopping and removing Redis container '$redisContainerName'...")
+            runProcess("docker", "rm", "-f", "-v", redisContainerName)
+            redisContainerSpawned = false
+            logger.lifecycle("Redis container stopped.")
+        }
+    }
+}
+
 tasks.named<Test>("test") {
     exclude("org/gridsim/integration/**")
     filter {
@@ -207,8 +257,8 @@ tasks.register<Test>("integrationTest") {
         includeTestsMatching("org.gridsim.integration.*")
     }
     shouldRunAfter(tasks.named("test"))
-    dependsOn(startKafkaContainer)
-    finalizedBy(stopKafkaContainer)
+    dependsOn(startKafkaContainer, startRedisContainer)
+    finalizedBy(stopKafkaContainer, stopRedisContainer)
 }
 
 tasks.jar {
