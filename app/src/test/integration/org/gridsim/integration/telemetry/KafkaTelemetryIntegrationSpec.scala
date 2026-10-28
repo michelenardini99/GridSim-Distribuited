@@ -3,6 +3,7 @@ package org.gridsim.integration.telemetry
 import org.apache.kafka.clients.consumer.{ConsumerConfig, ConsumerRecord, KafkaConsumer}
 import org.apache.kafka.common.serialization.{ByteArrayDeserializer, StringDeserializer}
 import org.apache.pekko.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
+import org.apache.pekko.actor.typed.scaladsl.Behaviors
 import org.apache.pekko.cluster.sharding.typed.scaladsl.EntityRef
 import org.apache.pekko.cluster.sharding.typed.testkit.scaladsl.TestEntityRef
 import org.apache.pekko.persistence.testkit.scaladsl.EventSourcedBehaviorTestKit
@@ -173,7 +174,17 @@ class KafkaTelemetryIntegrationSpec
       testKit.system,
       SimulationActor(
         PersistenceId(SimulationActor.TypeKey.name, UUID.randomUUID().toString),
-        id => TestEntityRef(EntityActor.TypeKey, id, testKit.spawn(org.apache.pekko.actor.typed.scaladsl.Behaviors.ignore[EntityCommand])),
+        id =>
+          TestEntityRef(
+            EntityActor.TypeKey,
+            id,
+            testKit.spawn(Behaviors.receiveMessage[EntityCommand] {
+              case EntityProtocol.Initialize(_, _, replyTo) =>
+                replyTo ! EntityProtocol.Ack
+                Behaviors.same
+              case _ => Behaviors.same
+            })
+          ),
         1.hour,
         tickPublisher
       ),
