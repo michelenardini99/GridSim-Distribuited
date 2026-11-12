@@ -1,0 +1,1954 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GridSim-Distributed — Distributed Systems Presentation</title>
+  <style>
+    :root {
+      --bg: #0b0f17;
+      --bg-elev: #131a27;
+      --card: #182132;
+      --card-alt: #1d283d;
+      --border: #2a3954;
+      --text: #e8eef7;
+      --muted: #98a7c0;
+      --accent: #4da6ff;
+      --accent-soft: rgba(77, 166, 255, 0.14);
+      --green: #3ddc97;
+      --green-soft: rgba(61, 220, 151, 0.14);
+      --amber: #ffb454;
+      --amber-soft: rgba(255, 180, 84, 0.14);
+      --red: #ff6b7b;
+      --red-soft: rgba(255, 107, 123, 0.14);
+      --purple: #b88cff;
+      --purple-soft: rgba(184, 140, 255, 0.14);
+      --mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(circle at 85% 10%, #152238 0%, var(--bg) 55%);
+      color: var(--text);
+      font-family: var(--sans);
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .deck {
+      position: relative;
+      width: 100%;
+      height: 100vh;
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      padding: 3.8vh 5.2vw 7.5vh 5.2vw;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+      overflow-y: auto;
+    }
+
+    .slide.active {
+      display: flex;
+      opacity: 1;
+    }
+
+    /* Typography */
+    .slide-header {
+      margin-bottom: 1.8vh;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 1.2vh;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 1rem;
+    }
+
+    .kicker {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--accent);
+      font-weight: 700;
+      margin: 0 0 0.3rem 0;
+    }
+
+    h1 {
+      font-size: clamp(1.65rem, 2.5vw, 2.35rem);
+      margin: 0;
+      color: var(--text);
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+    }
+
+    .header-tag {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      padding: 0.3rem 0.65rem;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      border: 1px solid rgba(77, 166, 255, 0.35);
+      white-space: nowrap;
+    }
+
+    h2 {
+      font-size: 1.15rem;
+      margin: 0 0 0.55rem 0;
+      color: var(--text);
+    }
+
+    h3 {
+      font-size: 1rem;
+      margin: 0 0 0.45rem 0;
+      color: var(--accent);
+    }
+
+    p {
+      margin: 0 0 0.65rem 0;
+      line-height: 1.5;
+      color: var(--text);
+      font-size: 0.98rem;
+    }
+
+    ul,
+    ol {
+      margin: 0.2rem 0 0.6rem 0;
+      padding-left: 1.25rem;
+      line-height: 1.52;
+      font-size: 0.96rem;
+    }
+
+    li {
+      margin-bottom: 0.38rem;
+    }
+
+    li::marker {
+      color: var(--accent);
+    }
+
+    code {
+      font-family: var(--mono);
+      font-size: 0.86em;
+      background: rgba(255, 255, 255, 0.07);
+      color: #a9d4ff;
+      padding: 0.12em 0.4em;
+      border-radius: 5px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    pre {
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      line-height: 1.45;
+      background: #0d131f;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.85rem 1rem;
+      margin: 0.4rem 0;
+      overflow-x: auto;
+      color: #d6e4ff;
+    }
+
+    /* Layout Helpers */
+    .content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 1.1rem;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.15rem;
+      align-items: stretch;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.1rem;
+      align-items: stretch;
+    }
+
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.95rem;
+      align-items: stretch;
+    }
+
+    .split-60-40 {
+      display: grid;
+      grid-template-columns: 1.35fr 1fr;
+      gap: 1.2rem;
+      align-items: center;
+    }
+
+    .split-40-60 {
+      display: grid;
+      grid-template-columns: 1fr 1.35fr;
+      gap: 1.2rem;
+      align-items: center;
+    }
+
+    .card {
+      background: linear-gradient(180deg, var(--card) 0%, rgba(24, 33, 50, 0.82) 100%);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem 1.15rem;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+    }
+
+    .card.accent-left {
+      border-left: 4px solid var(--accent);
+    }
+
+    .card.green-left {
+      border-left: 4px solid var(--green);
+    }
+
+    .card.amber-left {
+      border-left: 4px solid var(--amber);
+    }
+
+    .card.red-left {
+      border-left: 4px solid var(--red);
+    }
+
+    .card.purple-left {
+      border-left: 4px solid var(--purple);
+    }
+
+    .badge {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: 0.73rem;
+      font-weight: 700;
+      padding: 0.18rem 0.55rem;
+      border-radius: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 0.45rem;
+    }
+
+    .badge.blue {
+      background: var(--accent-soft);
+      color: var(--accent);
+      border: 1px solid rgba(77, 166, 255, 0.35);
+    }
+
+    .badge.green {
+      background: var(--green-soft);
+      color: var(--green);
+      border: 1px solid rgba(61, 220, 151, 0.35);
+    }
+
+    .badge.amber {
+      background: var(--amber-soft);
+      color: var(--amber);
+      border: 1px solid rgba(255, 180, 84, 0.35);
+    }
+
+    .badge.red {
+      background: var(--red-soft);
+      color: var(--red);
+      border: 1px solid rgba(255, 107, 123, 0.35);
+    }
+
+    .badge.purple {
+      background: var(--purple-soft);
+      color: var(--purple);
+      border: 1px solid rgba(184, 140, 255, 0.35);
+    }
+
+    .callout {
+      background: rgba(77, 166, 255, 0.08);
+      border: 1px solid rgba(77, 166, 255, 0.3);
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+      font-size: 0.93rem;
+      color: var(--text);
+    }
+
+    .callout strong {
+      color: var(--accent);
+    }
+
+    .formula-box {
+      font-family: var(--mono);
+      font-size: 0.88rem;
+      background: #0d131f;
+      border: 1px solid rgba(255, 180, 84, 0.4);
+      color: #ffd599;
+      padding: 0.45rem 0.7rem;
+      border-radius: 7px;
+      margin: 0.35rem 0;
+      text-align: center;
+      letter-spacing: 0.2px;
+    }
+
+    .diagram-box {
+      background: #0e1522;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.75rem;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .diagram-box svg {
+      width: 100%;
+      height: auto;
+      max-height: 46vh;
+    }
+
+    /* Title Slide */
+    .hero {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: flex-start;
+      max-width: 960px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .hero-title {
+      font-size: clamp(2.4rem, 4.4vw, 3.8rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.08;
+      margin: 0.3rem 0 0.8rem 0;
+      background: linear-gradient(95deg, #ffffff 0%, #8ac6ff 55%, #3ddc97 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-sub {
+      font-size: clamp(1.1rem, 1.6vw, 1.38rem);
+      color: var(--muted);
+      max-width: 780px;
+      line-height: 1.5;
+      margin-bottom: 1.8rem;
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      margin-bottom: 2.2rem;
+    }
+
+    .pill {
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      padding: 0.38rem 0.78rem;
+      border-radius: 8px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    .authors {
+      display: flex;
+      gap: 2rem;
+      border-top: 1px solid var(--border);
+      padding-top: 1.2rem;
+      width: 100%;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .authors strong {
+      color: var(--text);
+      display: block;
+      font-size: 1.05rem;
+    }
+
+    /* Tables */
+    table.clean-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+
+    table.clean-table th,
+    table.clean-table td {
+      padding: 0.55rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    table.clean-table th {
+      color: var(--accent);
+      font-weight: 600;
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    /* Navigation & Footer */
+    .footer-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 44px;
+      background: rgba(11, 15, 23, 0.9);
+      backdrop-filter: blur(8px);
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 2rem;
+      z-index: 30;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    .progress-track {
+      position: fixed;
+      bottom: 44px;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: rgba(255, 255, 255, 0.06);
+      z-index: 31;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--green));
+      width: 0%;
+      transition: width 0.25s ease;
+    }
+
+    .nav-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .nav-btn {
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.25rem 0.65rem;
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .nav-btn:hover {
+      background: var(--card-alt);
+      border-color: var(--accent);
+    }
+
+    /* Speaker Notes Drawer */
+    .notes-drawer {
+      position: fixed;
+      bottom: 47px;
+      right: 1.5rem;
+      width: min(560px, 92vw);
+      max-height: 42vh;
+      background: rgba(15, 22, 36, 0.97);
+      border: 1px solid var(--accent);
+      border-radius: 12px 12px 0 0;
+      padding: 1rem 1.2rem;
+      box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.5);
+      z-index: 40;
+      display: none;
+      overflow-y: auto;
+    }
+
+    .notes-drawer.visible {
+      display: block;
+    }
+
+    .notes-drawer h4 {
+      margin: 0 0 0.5rem 0;
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--accent);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .notes-drawer ul {
+      font-size: 0.88rem;
+      color: #d5e0f2;
+      margin: 0;
+    }
+
+    .slide-notes {
+      display: none;
+    }
+
+    @media print {
+
+      html,
+      body {
+        overflow: visible;
+        height: auto;
+        background: #0b0f17;
+      }
+
+      .slide {
+        position: relative;
+        display: flex !important;
+        opacity: 1 !important;
+        page-break-after: always;
+        height: 100vh;
+      }
+
+      .footer-bar,
+      .progress-track,
+      .notes-drawer {
+        display: none !important;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="deck" id="deck">
+
+    <!-- =========================================================
+       SLIDE 1: TITOLO
+       ========================================================= -->
+    <section class="slide active" data-time="0:00 - 0:45">
+      <div class="hero">
+        <p class="kicker">Alma Mater Studiorum · Università di Bologna · Corso di Distributed Systems</p>
+        <div class="hero-title">GridSim-Distributed</div>
+        <div class="hero-sub">
+          Simulazione distribuita, event-sourced e fault-tolerant di micro-grid energetiche su cluster Apache Pekko,
+          Apache Kafka e Redis.
+        </div>
+        <div class="pill-row">
+          <span class="pill">Scala 3 &amp; Pekko Cluster Sharding</span>
+          <span class="pill">Event Sourcing su Redis</span>
+          <span class="pill">Control Plane HTTP / Data Plane Kafka</span>
+          <span class="pill">CAP Theorem: CP Backend</span>
+          <span class="pill">Protobuf Telemetry</span>
+        </div>
+        <div class="authors">
+          <div>
+            <strong>Matteo Bambini</strong>
+            <code>matteo.bambini@studio.unibo.it</code>
+          </div>
+          <div>
+            <strong>Michele Nardini</strong>
+            <code>michele.nardini2@studio.unibo.it</code>
+          </div>
+          <div style="margin-left:auto; text-align:right;">
+            <strong>A.A. 2025 / 2026</strong>
+            <span>10–15 min + Live Demo</span>
+          </div>
+        </div>
+      </div>
+      <div class="slide-notes">
+        <ul>
+          <li><strong>Apertura (45s)</strong>: Presentiamo <em>GridSim-Distributed</em>, un sistema distribuito per la
+            simulazione real-time di micro-reti elettriche.</li>
+          <li><strong>Focus della presentazione</strong>: dopo un rapido inquadramento del dominio, ci concentreremo
+            sull'architettura distribuita (Actor Model, Cluster Sharding, separazione Control/Data Plane, Event Sourcing
+            su Redis, scelte rispetto al Teorema CAP e gestione dei guasti) per poi chiudere con una Live Demo del
+            cluster.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- =========================================================
+       SLIDE 2: CONTESTO & DOMINIO APPLICATIVO
+       ========================================================= -->
+    <section class="slide" data-time="0:45 - 2:00">
+      <div class="slide-header">
+        <div>
+          <p class="kicker">01 · Contesto del Progetto</p>
+          <h1>Il Dominio: Simulazione di una Micro-Grid Energetica</h1>
+        </div>
+        <span class="header-tag">Functional Core · Discrete Ticks</span>
+      </div>
+
+      <div class="content">
+        <div class="split-60-40">
+          <div class="grid-2">
+            <div class="card accent-left">
+              <span class="badge blue">Grafo della Rete</span>
+              <h2>Nodi (Entità) &amp; Archi (Cavi)</h2>
+              <ul>
+                <li><code>House</code>: profilo di consumo + pannelli e batterie locali; risolve prima il proprio
+                  bilancio interno.</li>
+                <li><code>SolarPanel</code>: produzione in funzione di irraggiamento, superficie ed efficienza.</li>
+                <li><code>Storage</code> (Batteria): accumulo/rilascio vincolato da capacità, potenza max e
+                  <code>minSoC</code>.
+                </li>
+                <li><code>ExternalGrid</code>: sorgente/pozzo infinito che assorbe lo sbilancio residuo della rete.</li>
+                <li><code>Cable</code>: arco con capacità massima di trasporto (rilevamento sovraccarichi).</li>
+              </ul>
+            </div>
+
+            <div class="card green-left">
+              <span class="badge green">Evoluzione a Tick Discreti</span>
+              <h2>Cosa accade ad ogni Tick &Delta;t</h2>
+              <ol>
+                <li><strong>Ambiente</strong>: avanzamento orario, calcolo temperatura e irraggiamento solare.</li>
+                <li><strong>Bilancio Locale</strong>: ogni entità calcola il proprio nuovo stato e il
+                  <code>Flow[Energy]</code> netto (<em>Surplus</em>, <em>Deficit</em>, <em>Balanced</em>).
+                </li>
+                <li><strong>Power-Flow Solver</strong>: risoluzione globale dei flussi sui cavi (leggi di Kirchhoff).
+                </li>
+              </ol>
+            </div>
+          </div>
+
+          <div class="diagram-box">
+            <svg viewBox="0 0 450 380" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <marker id="flowGreen" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6"
+                  orient="auto">
+                  <path d="M 0 1 L 10 5 L 0 9 z" fill="#3ddc97" />
+                </marker>
+                <marker id="flowBlue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6"
+                  orient="auto">
+                  <path d="M 0 1 L 10 5 L 0 9 z" fill="#4da6ff" />
+                </marker>
+                <marker id="flowRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6"
+                  orient="auto">
+                  <path d="M 0 1 L 10 5 L 0 9 z" fill="#ff6b7b" />
+                </marker>
+              </defs>
+
+              <!-- Background -->
+              <rect x="10" y="10" width="430" height="360" rx="12" fill="#121b2b" stroke="#2a3954" />
+              <text x="26" y="34" fill="#e8eef7" font-size="12" font-weight="bold">Esempio di Topologia Micro-Grid
+                (GridGraph)</text>
+
+              <!-- External Grid (Top Center) -->
+              <rect x="145" y="48" width="160" height="48" rx="8" fill="#1e293b" stroke="#ffb454" stroke-width="2" />
+              <text x="225" y="69" text-anchor="middle" fill="#ffb454" font-size="13"
+                font-weight="bold">ExternalGrid</text>
+              <text x="225" y="85" text-anchor="middle" fill="#98a7c0" font-size="10">Sorgente / Pozzo Infinito</text>
+
+              <!-- SolarPanel Node (Middle Left) -->
+              <rect x="24" y="148" width="122" height="54" rx="8" fill="#142b24" stroke="#3ddc97" stroke-width="1.8" />
+              <text x="85" y="170" text-anchor="middle" fill="#3ddc97" font-size="12"
+                font-weight="bold">SolarPanel</text>
+              <text x="85" y="185" text-anchor="middle" fill="#e8eef7" font-size="10">Surplus: +22 kW</text>
+              <text x="85" y="197" text-anchor="middle" fill="#98a7c0" font-size="9">Irradiance &times; Area &times;
+                &eta;</text>
+
+              <!-- Storage Node (Middle Right) -->
+              <rect x="304" y="148" width="122" height="54" rx="8" fill="#231c38" stroke="#b88cff" stroke-width="1.8" />
+              <text x="365" y="170" text-anchor="middle" fill="#b88cff" font-size="12" font-weight="bold">Storage
+                (Battery)</text>
+              <text x="365" y="185" text-anchor="middle" fill="#e8eef7" font-size="10">SoC: 75% (+5 kW)</text>
+              <text x="365" y="197" text-anchor="middle" fill="#98a7c0" font-size="9">[minSoC, maxCap]</text>
+
+              <!-- House 1 Prosumer (Bottom Left) -->
+              <rect x="24" y="252" width="175" height="68" rx="8" fill="#17253b" stroke="#4da6ff" stroke-width="1.8" />
+              <text x="111" y="272" text-anchor="middle" fill="#4da6ff" font-size="12" font-weight="bold">House 1
+                (Prosumer)</text>
+              <text x="111" y="287" text-anchor="middle" fill="#98a7c0" font-size="9.5">Componenti: PV + Battery</text>
+              <rect x="36" y="294" width="151" height="19" rx="4" fill="#0d1524" />
+              <text x="111" y="307" text-anchor="middle" fill="#3ddc97" font-size="9.5" font-family="monospace">Net
+                Flow: Surplus +3 kW</text>
+
+              <!-- House 2 Consumer (Bottom Right) -->
+              <rect x="251" y="252" width="175" height="68" rx="8" fill="#17253b" stroke="#4da6ff" stroke-width="1.8" />
+              <text x="338" y="272" text-anchor="middle" fill="#4da6ff" font-size="12" font-weight="bold">House 2
+                (Consumer)</text>
+              <text x="338" y="287" text-anchor="middle" fill="#98a7c0" font-size="9.5">Solo carico domestico</text>
+              <rect x="263" y="294" width="151" height="19" rx="4" fill="#0d1524" />
+              <text x="338" y="307" text-anchor="middle" fill="#ff6b7b" font-size="9.5" font-family="monospace">Net
+                Flow: Deficit -20 kW</text>
+
+              <!-- Cables (Edges) -->
+              <!-- SolarPanel -> ExternalGrid -->
+              <line x1="110" y1="148" x2="180" y2="98" stroke="#3ddc97" stroke-width="2.2"
+                marker-end="url(#flowGreen)" />
+              <text x="112" y="117" fill="#3ddc97" font-size="9.5" font-family="monospace">15/25 kW</text>
+
+              <!-- SolarPanel -> House 1 -->
+              <line x1="85" y1="202" x2="85" y2="248" stroke="#3ddc97" stroke-width="2" marker-end="url(#flowGreen)" />
+              <text x="92" y="230" fill="#98a7c0" font-size="9" font-family="monospace">Cable</text>
+
+              <!-- ExternalGrid -> Storage -->
+              <line x1="270" y1="96" x2="340" y2="146" stroke="#4da6ff" stroke-width="2.2"
+                marker-end="url(#flowBlue)" />
+              <text x="315" y="117" fill="#4da6ff" font-size="9.5" font-family="monospace">5/20 kW</text>
+
+              <!-- Storage -> House 2 (OVERLOAD CABLE) -->
+              <line x1="355" y1="202" x2="355" y2="248" stroke="#ff6b7b" stroke-width="2.6" stroke-dasharray="5 3"
+                marker-end="url(#flowRed)" />
+              <text x="363" y="224" fill="#ff6b7b" font-size="9.5" font-family="monospace" font-weight="bold">20/15
+                kW!</text>
+              <text x="363" y="236" fill="#ff6b7b" font-size="8.5" font-family="monospace">OVERLOAD</text>
+
+              <!-- House 1 -> House 2 -->
+              <line x1="199" y1="286" x2="247" y2="286" stroke="#3ddc97" stroke-width="2"
+                marker-end="url(#flowGreen)" />
+              <text x="223" y="279" text-anchor="middle" fill="#3ddc97" font-size="9" font-family="monospace">3/10
+                kW</text>
+
+              <!-- Legend at bottom -->
+              <line x1="28" y1="346" x2="52" y2="346" stroke="#3ddc97" stroke-width="2.2"
+                marker-end="url(#flowGreen)" />
+              <text x="58" y="350" fill="#98a7c0" font-size="10">Surplus immesso</text>
+
+              <line x1="165" y1="346" x2="189" y2="346" stroke="#4da6ff" stroke-width="2.2"
+                marker-end="url(#flowBlue)" />
+              <text x="195" y="350" fill="#98a7c0" font-size="10">Flusso su cavo</text>
+
+              <line x1="292" y1="346" x2="316" y2="346" stroke="#ff6b7b" stroke-width="2.5" stroke-dasharray="4 2"
+                marker-end="url(#flowRed)" />
+              <text x="322" y="350" fill="#ff6b7b" font-size="10" font-weight="bold">Cavo in Overload</text>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-notes">
+        <ul>
+          <li><strong>Cos'è GridSim</strong>: modella una micro-rete elettrica come un grafo orientato in cui i nodi
+            sono entità energetiche (case, impianti fotovoltaici, batterie e la rete esterna) e gli archi sono cavi con
+            capacità finita.</li>
+          <li><strong>Come avanza</strong>: a passi discreti (<em>tick</em>). A ogni tick si aggiorna il meteo, ogni
+            entità risolve in autonomia il proprio bilancio energetico locale, e infine un solutore di Kirchhoff calcola
+            i flussi sui cavi.</li>
+          <li><strong>Principio di design</strong>: <em>Functional Core, Imperative Shell</em> — tutte le transizioni di
+            dominio sono funzioni pure su strutture immutabili, isolate dal runtime distribuito.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- =========================================================
+       SLIDE 3: PERCHÉ DISTRIBUIRE?
+       ========================================================= -->
+    <section class="slide" data-time="2:00 - 3:00">
+      <div class="slide-header">
+        <div>
+          <p class="kicker">02 · Motivazioni della Distribuzione</p>
+          <h1>Perché un Sistema Distribuito?</h1>
+        </div>
+        <span class="header-tag">4 Driver Architetturali</span>
+      </div>
+
+      <div class="content">
+        <div class="grid-2">
+          <div class="card accent-left">
+            <span class="badge blue">1 · Resource Sharing &amp; Separation of Concerns</span>
+            <h2>Disaccoppiare Calcolo e Osservazione</h2>
+            <p>Il motore di simulazione (CPU/state-intensive, esecuzione continua) e la GUI (interaction-intensive)
+              hanno cicli di vita opposti:</p>
+            <ul>
+              <li>Un cluster backend condiviso può eseguire <strong>più simulazioni concorrenti</strong>.</li>
+              <li><strong>Più client GUI remoti</strong> possono attaccarsi, osservare e staccarsi dalla stessa
+                simulazione in esecuzione senza appesantire il motore né bloccare la UI.</li>
+            </ul>
+          </div>
+
+          <div class="card green-left">
+            <span class="badge green">2 · Parallelismo &amp; Scalabilità Orizzontale</span>
+            <h2>Decomposizione Naturale per Entità</h2>
+            <p>All'interno di un tick, il bilancio energetico di ogni entità è <strong>indipendente</strong> da quello
+              delle altre (prima del power-flow globale):</p>
+            <ul>
+              <li>Ogni nodo della rete elettrica diventa un attore autonomo (<code>EntityActor</code>).</li>
+              <li>Tramite <strong>Cluster Sharding</strong>, le entità vengono distribuite su più nodi del cluster per
+                scalare con la dimensione della rete simulata.</li>
+            </ul>
+          </div>
+
+          <div class="card amber-left">
+            <span class="badge amber">3 · Fault Tolerance &amp; Dependability</span>
+            <h2>Sopravvivere ai Crash senza Perdere Stato</h2>
+            <p>Una simulazione long-running rappresenta uno stato prezioso che non deve andare perso per il guasto di un
+              componente:</p>
+            <ul>
+              <li><strong>Event Sourcing + Snapshotting</strong> su uno store condiviso (Redis) esterno ai nodi di
+                calcolo.</li>
+              <li>Se un attore o un intero nodo del cluster cade, la simulazione viene <strong>ri-allocata su un nodo
+                  superstite</strong> e riprende esattamente dall'ultimo tick persistito.</li>
+            </ul>
+          </div>
+
+          <div class="card purple-left">
+            <span class="badge purple">4 · Trasparenza Selettiva</span>
+            <h2>Location Transparency vs Failure Visibility</h2>
+            <ul>
+              <li><strong>Location &amp; Migration Transparency (Sì)</strong>: <code>SimulationActor</code> dialoga con
+                gli <code>EntityActor</code> tramite ID logici, ignorando su quale nodo
+                fisico si trovino o se siano migrati.</li>
+              <li><strong>Failure Transparency (No, intenzionalmente)</strong>: non nascondiamo i guasti all'operatore
+                umano; se il backend è degradato o irraggiungibile, la GUI lo segnala esplicitamente.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-notes">
+        <ul>
+          <li><strong>Perché non un monolite locale?</strong> Quattro motivi fondamentali per il corso di Sistemi
+            Distribuiti:</li>
+          <li>1) <em>Resource sharing</em>: separare chi calcola la simulazione (server/cluster) da chi la controlla o
+            osserva (0..N GUI anche su macchine diverse).</li>
+          <li>2) <em>Scalabilità orizzontale</em>: le entità evolvono in parallelo su shard distribuiti.</li>
+          <li>3) <em>Fault tolerance</em>: se muore un container del backend, la simulazione non muore con lui ma migra
+            e recupera lo stato da Redis.</li>
+          <li>4) <em>Scelta sulla trasparenza</em>: massima trasparenza di locazione/migrazione dentro il cluster, ma
+            onestà verso l'utente sui guasti (niente dati stantii spacciati per live).</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- =========================================================
+       SLIDE 4: ARCHITETTURA INFRASTRUTTURALE & PIANI DI COMUNICAZIONE
+       ========================================================= -->
+    <section class="slide" data-time="3:00 - 4:30">
+      <div class="slide-header">
+        <div>
+          <p class="kicker">03 · Architettura &amp; Infrastruttura</p>
+          <h1>Vista Infrastrutturale: Control Plane vs Data Plane</h1>
+        </div>
+        <span class="header-tag">Client-Server · Clustered Backend</span>
+      </div>
+
+      <div class="content">
+        <div class="split-40-60">
+          <div style="display:flex; flex-direction:column; gap:0.9rem;">
+            <div class="card accent-left">
+              <span class="badge blue">Control Plane · HTTP REST + JSON</span>
+              <h2>Comandi di Ciclo di Vita (Bassa Frequenza)</h2>
+              <ul>
+                <li>Client &rarr; <strong>Caddy Reverse Proxy</strong> (round-robin + passive
+                  health-check) &rarr; qualsiasi nodo del cluster.</li>
+                <li>Operazioni: creazione/lista simulazioni, <code>start</code>, <code>pause</code>, <code>step</code>,
+                  <code>stop</code>, cambio <code>speed</code> e <code>tickDelta</code>.
+                </li>
+                <li>Ogni nodo può servire qualsiasi richiesta grazie a Cluster Singleton e Cluster Sharding.</li>
+              </ul>
+            </div>
+
+            <div class="card green-left">
+              <span class="badge green">Data Plane · Apache Kafka + Protobuf</span>
+              <h2>Telemetria Real-Time (Alta Frequenza)</h2>
+              <ul>
+                <li>Flusso unidirezionale <strong>Pub/Sub</strong>: il backend pubblica su 3 topic per simulazione;
+                  <em>N</em> GUI si iscrivono con consumer group propri.
+                </li>
+                <li>Payload binari compatti generati con <strong>ScalaPB</strong>.</li>
+                <li>Nessun accoppiamento o backpressure dai client lenti verso gli attori.</li>
+              </ul>
+            </div>
+
+            <div class="card red-left">
+              <span class="badge red">Shared Persistence · Redis 7</span>
+              <h2>Journal &amp; Snapshot Store Condiviso</h2>
+              <p>Tutti i nodi del cluster persistono eventi e snapshot nello stesso store Redis esterno, abilitando il
+                failover cross-node.</p>
+            </div>
+          </div>
+
+          <div class="diagram-box">
+            <svg viewBox="0 0 580 430" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <marker id="aBlue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                  <path d="M 0 1 L 10 5 L 0 9 z" fill="#4da6ff" />
+                </marker>
+                <marker id="aGreen" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6"
+                  orient="auto">
+                  <path d="M 0 1 L 10 5 L 0 9 z" fill="#3ddc97" />
+                </marker>
+                <marker id="aRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                  <path d="M 0 1 L 10 5 L 0 9 z" fill="#ff6b7b" />
+                </marker>
+              </defs>
+
+              <!-- GUI Clients -->
+              <rect x="205" y="14" width="175" height="44" rx="8" fill="#1e293b" stroke="#98a7c0"
+                stroke-dasharray="3 2" />
+              <rect x="195" y="22" width="175" height="44" rx="8" fill="#233047" stroke="#e8eef7" stroke-width="1.8" />
+              <text x="282" y="43" text-anchor="middle" fill="#ffffff" font-size="13" font-weight="bold">ScalaFX GUI
+                Client(s)</text>
+              <text x="282" y="58" text-anchor="middle" fill="#98a7c0" font-size="10">0..N Stateless Observers
+                (MVVM)</text>
+
+              <!-- Caddy Gateway -->
+              <rect x="35" y="110" width="185" height="52" rx="9" fill="#14263d" stroke="#4da6ff" stroke-width="2" />
+              <text x="127" y="133" text-anchor="middle" fill="#4da6ff" font-size="13" font-weight="bold">Caddy HTTP
+                Gateway</text>
+              <text x="127" y="150" text-anchor="middle" fill="#98a7c0" font-size="10">Round-Robin · Failover
+                :8080</text>
+
+              <!-- Kafka Broker -->
+              <rect x="360" y="110" width="185" height="52" rx="9" fill="#112b24" stroke="#3ddc97" stroke-width="2" />
+              <text x="452" y="133" text-anchor="middle" fill="#3ddc97" font-size="13" font-weight="bold">Apache Kafka
+                (KRaft)</text>
+              <text x="452" y="150" text-anchor="middle" fill="#98a7c0" font-size="10">Topics: entities / ticks /
+                control</text>
+
+              <!-- Pekko Cluster Box -->
+              <rect x="22" y="198" width="536" height="132" rx="12" fill="#111826" stroke="#4da6ff"
+                stroke-dasharray="6 4" />
+              <text x="38" y="218" fill="#4da6ff" font-size="11" font-family="monospace" font-weight="bold">Apache Pekko
+                Cluster (Artery TCP :2551 · DNS Seed Discovery · SBR keep-majority)</text>
+
+              <!-- Node 1 -->
+              <rect x="38" y="230" width="158" height="86" rx="8" fill="#182235" stroke="#2a3954" stroke-width="1.5" />
+              <text x="117" y="249" text-anchor="middle" fill="#e8eef7" font-size="12" font-weight="bold">Backend Node
+                1</text>
+              <rect x="48" y="257" width="66" height="24" rx="4" fill="#24344f" />
+              <text x="81" y="273" text-anchor="middle" fill="#a9d4ff" font-size="9">Sim Shard</text>
+              <rect x="120" y="257" width="66" height="24" rx="4" fill="#24344f" />
+              <text x="153" y="273" text-anchor="middle" fill="#ffb454" font-size="9">Entity Shard</text>
+              <rect x="48" y="286" width="138" height="20" rx="4" fill="#2c2247" stroke="#b88cff" />
+              <text x="117" y="299" text-anchor="middle" fill="#b88cff" font-size="9" font-weight="bold">Registry
+                Singleton</text>
+
+              <!-- Node 2 -->
+              <rect x="211" y="230" width="158" height="86" rx="8" fill="#182235" stroke="#2a3954" stroke-width="1.5" />
+              <text x="290" y="249" text-anchor="middle" fill="#e8eef7" font-size="12" font-weight="bold">Backend Node
+                2</text>
+              <rect x="221" y="257" width="66" height="24" rx="4" fill="#24344f" />
+              <text x="254" y="273" text-anchor="middle" fill="#a9d4ff" font-size="9">Sim Shard</text>
+              <rect x="293" y="257" width="66" height="24" rx="4" fill="#24344f" />
+              <text x="326" y="273" text-anchor="middle" fill="#ffb454" font-size="9">Entity Shard</text>
+              <text x="290" y="299" text-anchor="middle" fill="#98a7c0" font-size="9">Pekko HTTP :8080</text>
+
+              <!-- Node 3 -->
+              <rect x="384" y="230" width="158" height="86" rx="8" fill="#182235" stroke="#2a3954" stroke-width="1.5" />
+              <text x="463" y="249" text-anchor="middle" fill="#e8eef7" font-size="12" font-weight="bold">Backend Node
+                3</text>
+              <rect x="394" y="257" width="66" height="24" rx="4" fill="#24344f" />
+              <text x="427" y="273" text-anchor="middle" fill="#a9d4ff" font-size="9">Sim Shard</text>
+              <rect x="466" y="257" width="66" height="24" rx="4" fill="#24344f" />
+              <text x="499" y="273" text-anchor="middle" fill="#ffb454" font-size="9">Entity Shard</text>
+              <text x="463" y="299" text-anchor="middle" fill="#98a7c0" font-size="9">Pekko HTTP :8080</text>
+
+              <!-- Redis -->
+              <rect x="175" y="362" width="230" height="52" rx="9" fill="#2d161e" stroke="#ff6b7b" stroke-width="2" />
+              <text x="290" y="385" text-anchor="middle" fill="#ff6b7b" font-size="13" font-weight="bold">Redis Shared
+                Store (:6379)</text>
+              <text x="290" y="402" text-anchor="middle" fill="#e8eef7" font-size="10">RedisJournal + RedisSnapshotStore
+                (ZSET)</text>
+
+              <!-- Arrows -->
+              <line x1="220" y1="66" x2="140" y2="108" stroke="#4da6ff" stroke-width="2" marker-end="url(#aBlue)" />
+              <text x="142" y="84" fill="#4da6ff" font-size="10" font-family="monospace">REST / JSON</text>
+
+              <line x1="452" y1="110" x2="350" y2="66" stroke="#3ddc97" stroke-width="2" marker-end="url(#aGreen)" />
+              <text x="422" y="84" fill="#3ddc97" font-size="10" font-family="monospace">Subscribe (Protobuf)</text>
+
+              <line x1="117" y1="162" x2="117" y2="226" stroke="#4da6ff" stroke-width="1.8" marker-end="url(#aBlue)" />
+              <line x1="135" y1="162" x2="265" y2="226" stroke="#4da6ff" stroke-width="1.5" marker-end="url(#aBlue)" />
+              <line x1="150" y1="162" x2="430" y2="226" stroke="#4da6ff" stroke-width="1.5" marker-end="url(#aBlue)" />
+
+              <line x1="290" y1="230" x2="425" y2="164" stroke="#3ddc97" stroke-width="1.6" marker-end="url(#aGreen)" />
+              <line x1="463" y1="230" x2="463" y2="164" stroke="#3ddc97" stroke-width="1.8" marker-end="url(#aGreen)" />
+
+              <line x1="117" y1="316" x2="225" y2="360" stroke="#ff6b7b" stroke-width="1.6" marker-end="url(#aRed)" />
+              <line x1="290" y1="316" x2="290" y2="360" stroke="#ff6b7b" stroke-width="1.8" marker-end="url(#aRed)" />
+              <line x1="463" y1="316" x2="355" y2="360" stroke="#ff6b7b" stroke-width="1.6" marker-end="url(#aRed)" />
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-notes">
+        <ul>
+          <li><strong>Excursus sull'architettura generale</strong>: il sistema è organizzato in tre livelli
+            disaccoppiati orchestrati via Docker Compose: (1) client GUI ScalaFX leggeri e <em>stateless</em>, (2) un
+            cluster backend di calcolo composto da 3 nodi <strong>Apache Pekko</strong> che comunicano via <em>Artery
+              TCP</em> e si scoprono dinamicamente tramite il DNS interno di Docker (<code>CLUSTER_SERVICE_NAME</code>,
+            senza IP statici), e (3) un livello esterno di messaggistica e persistenza.</li>
+          <li><strong>Control Plane vs Data Plane</strong>: invece di multiplexare tutto su un'unica connessione,
+            separiamo nettamente il <em>Control Plane</em> sincrono a bassa frequenza (HTTP REST/JSON bilanciato in
+            round-robin dal gateway Caddy) dal <em>Data Plane</em> asincrono ad alta frequenza (Apache Kafka in modalità
+            KRaft con payload Protobuf, per disaccoppiare il backend da <em>N</em> osservatori).</li>
+          <li><strong>Shared Persistence</strong>: nessun nodo Pekko salva stato sul proprio disco locale; tutti
+            persistono eventi e snapshot su un'istanza <strong>Redis</strong> condivisa esterna, abilitando il failover
+            immediato tra nodi.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- =========================================================
+       SLIDE 5: BACKEND DISTRIBUITO — ATTORI, SHARDING & SINGLETON
+       ========================================================= -->
+    <section class="slide" data-time="4:30 - 5:45">
+      <div class="slide-header">
+        <div>
+          <p class="kicker">04 · Modello ad Attori &amp; Naming</p>
+          <h1>Il Backend Pekko: Singleton, Sharding &amp; Location Transparency</h1>
+        </div>
+        <span class="header-tag">Apache Pekko Typed · Cluster</span>
+      </div>
+
+      <div class="content">
+        <div class="grid-3">
+          <div class="card purple-left">
+            <span class="badge purple">Cluster Singleton</span>
+            <h2><code>SimulationRegistryActor</code></h2>
+            <ul>
+              <li>Unica istanza attiva nell'intero cluster, ospitata sul nodo più anziano.</li>
+              <li>Mantiene la mappa globale <code>simulationId &rarr; presetName</code> per rispondere a
+                <code>GET /api/simulations</code>.
+              </li>
+              <li><strong>Event-Sourced su Redis</strong>: persiste <code>SimulationRegistered</code> e
+                <code>SimulationUnregistered</code>.
+              </li>
+              <li>Se il nodo ospite cade, il singleton migra automaticamente sul nuovo nodo più anziano e ricostruisce
+                il registro da Redis.</li>
+            </ul>
+          </div>
+
+          <div class="card accent-left">
+            <span class="badge blue">Cluster Sharding (Remember Entities)</span>
+            <h2><code>SimulationActor</code></h2>
+            <ul>
+              <li>Un attore per ogni simulazione attiva, indirizzato per <code>simulationId</code>.</li>
+              <li><strong>Macchina a stati finiti (FSM)</strong>:
+                <code>Idle &rarr; Running &harr; Paused &rarr; Stopped</code>.
+              </li>
+              <li>Orchestra il timer dei tick, esegue lo scatter/gather verso le entità e invoca il power solver.
+              </li>
+              <li>In caso di crash di un nodo, viene
+                <strong>ri-attivato proattivamente</strong> su un nodo superstite.
+              </li>
+            </ul>
+          </div>
+
+          <div class="card amber-left">
+            <span class="badge amber">Cluster Sharding (Lazy Activation)</span>
+            <h2><code>EntityActor</code></h2>
+            <ul>
+              <li>Un attore per ogni entità energetica della rete, indirizzato con ID logico.
+              </li>
+              <li>Possiede in modo <strong>esclusivo</strong> configurazione statica e stato dinamico.
+              </li>
+              <li>Reagisce a <code>Initialize</code> ed <code>Evolve(env, delta, tick)</code>, pubblicando direttamente
+                la propria telemetria su Kafka.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-notes">
+        <ul>
+          <li><strong>Tre attori persistenti con responsabilità distinte</strong>:</li>
+          <li>1) <code>SimulationRegistryActor</code> è un <em>Cluster Singleton</em>: fornisce un unico punto di verità
+            per l'elenco delle simulazioni esistenti.</li>
+          <li>2) <code>SimulationActor</code> è sharded per <code>simulationId</code> con
+            <code>rememberEntities = true</code>: gestisce il ciclo di vita e orchestra i tick.
+          </li>
+          <li>3) <code>EntityActor</code> è sharded per <code>simulationId-localId</code>: incapsula lo stato della
+            singola entità senza alcuna memoria condivisa.</li>
+          <li><strong>Location Transparency</strong>: né le rotte HTTP né <code>SimulationActor</code> sanno su quale
+            nodo fisico viva un attore; usano solo <code>EntityRef</code>.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- =========================================================
+       SLIDE 6: ANATOMIA DI UN TICK (SCATTER / GATHER)
+       ========================================================= -->
+    <section class="slide" data-time="5:45 - 7:00">
+      <div class="slide-header">
+        <div>
+          <p class="kicker">05 · Coordinazione Distribuita</p>
+          <h1>Anatomia di un Tick: Il Protocollo Scatter / Gather</h1>
+        </div>
+        <span class="header-tag">Non-Blocking Mailbox · pipeToSelf</span>
+      </div>
+
+      <div class="content">
+        <div class="split-40-60">
+          <div style="display:flex; flex-direction:column; gap:0.85rem;">
+            <div class="card accent-left">
+              <span class="badge blue">1 · Scatter Parallelo &amp; Logical Clock</span>
+              <p>Allo scattare di <code>TickTimer</code>, <code>SimulationActor</code> avanza l'<code>Environment</code>
+                di <code>&Delta;t</code> e usa <code>tick: Long</code> come <strong>Scalar Logical Clock</strong> per
+                inviare <code>ask(Evolve)</code> (con <code>tickTimeout</code>) a tutti gli <code>EntityActor</code>.
+              </p>
+            </div>
+
+            <div class="card amber-left">
+              <span class="badge amber">2 · Conit Indipendenti &amp; Spazio-Tempo</span>
+              <p>I nodi operano in <em>Distributed Concurrent Computing</em>, ma il tick impone un <strong>Contesto
+                  Temporale Logico Condiviso <em>T</em></strong> su entità distribuite spazialmente (<em>S<sub>i</sub>
+                  &ne; S<sub>j</sub></em>). Ogni <code>GridEntityState</code> è un <strong>Conit indipendente</strong>
+                che evolve localmente senza lock globali, sincronizzandosi solo al confine del tick.</p>
+            </div>
+
+            <div class="card green-left">
+              <span class="badge green">3 · Gather &amp; Latency Hiding Asincrono</span>
+              <p><code>Future.sequence</code> + <code>context.pipeToSelf</code> attuano il <strong>Latency Hiding
+                  asincrono</strong> (Neuman): la mailbox di <code>SimulationActor</code> non si blocca mai in attesa
+                della rete. Al gather, persiste <code>TickAdvanced</code>, risolve Kirchhoff e pubblica il tick globale.
+              </p>
+            </div>
+          </div>
+
+          <div class="diagram-box">
+            <svg viewBox="0 0 560 400" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <marker id="sBlue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                  <path d="M 0 1 L 10 5 L 0 9 z" fill="#4da6ff" />
+                </marker>
+                <marker id="sGreen" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6"
+                  orient="auto">
+                  <path d="M 0 1 L 10 5 L 0 9 z" fill="#3ddc97" />
+                </marker>
+                <marker id="sAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6"
+                  orient="auto">
+                  <path d="M 0 1 L 10 5 L 0 9 z" fill="#ffb454" />
+                </marker>
+              </defs>
+
+              <!--Lifelines headers-->
+              <rect x="20" y="15" width="95" height="34" rx="6" fill="#1e293b" stroke="#98a7c0" />
+              <text x="67" y="36" text-anchor="middle" fill="#e8eef7" font-size="11" font-weight="bold">GUI
+                Client</text>
+
+              <rect x="145" y="15" width="115" height="34" rx="6" fill="#17253b" stroke="#4da6ff" />
+              <text x="202" y="36" text-anchor="middle" fill="#4da6ff" font-size="11"
+                font-weight="bold">SimulationActor</text>
+
+              <rect x="290" y="15" width="115" height="34" rx="6" fill="#2a2218" stroke="#ffb454" />
+              <text x="347" y="36" text-anchor="middle" fill="#ffb454" font-size="11" font-weight="bold">EntityActor
+                (xN)</text>
+
+              <rect x="435" y="15" width="105" height="34" rx="6" fill="#112b24" stroke="#3ddc97" />
+              <text x="487" y="36" text-anchor="middle" fill="#3ddc97" font-size="11" font-weight="bold">Redis /
+                Kafka</text>
+
+              <!-- Lifelines -->
+              <line x1="67" y1="49" x2="67" y2="385" stroke="#475569" stroke-dasharray="4 4" />
+              <line x1="202" y1="49" x2="202" y2="385" stroke="#475569" stroke-dasharray="4 4" />
+              <line x1="347" y1="49" x2="347" y2="385" stroke="#475569" stroke-dasharray="4 4" />
+              <line x1="487" y1="49" x2="487" y2="385" stroke="#475569" stroke-dasharray="4 4" />
+
+              <!-- Start -->
+              <line x1="67" y1="72" x2="198" y2="72" stroke="#4da6ff" stroke-width="1.8" marker-end="url(#sBlue)" />
+              <text x="132" y="66" text-anchor="middle" fill="#4da6ff" font-size="10" font-family="monospace">POST
+                /start (! Start)</text>
+
+              <!-- Loop box -->
+              <rect x="130" y="88" width="415" height="275" rx="8" fill="rgba(77,166,255,0.03)" stroke="#2a3954"
+                stroke-dasharray="5 3" />
+              <text x="140" y="104" fill="#98a7c0" font-size="10" font-family="monospace">loop [status ==
+                RunningStatus]</text>
+
+              <!-- 1. Self TickTimer -->
+              <path d="M 202 115 L 238 115 L 238 132 L 206 132" fill="none" stroke="#4da6ff" stroke-width="1.5"
+                marker-end="url(#sBlue)" />
+              <text x="244" y="127" fill="#e8eef7" font-size="10" font-family="monospace">self ! TickTimer</text>
+
+              <!-- 2. Scatter Evolve -->
+              <line x1="202" y1="154" x2="343" y2="154" stroke="#ffb454" stroke-width="2" marker-end="url(#sAmber)" />
+              <text x="273" y="148" text-anchor="middle" fill="#ffb454" font-size="10" font-family="monospace">ask
+                Evolve(env, Δt, tick) [xN]</text>
+
+              <!-- 3. Entity persist + publish -->
+              <line x1="347" y1="178" x2="483" y2="178" stroke="#3ddc97" stroke-width="1.6" marker-end="url(#sGreen)" />
+              <text x="417" y="172" text-anchor="middle" fill="#3ddc97" font-size="9.5" font-family="monospace">persist
+                Evolved + pub entity</text>
+
+              <!-- 4. Gather EntityEvolved -->
+              <line x1="347" y1="206" x2="206" y2="206" stroke="#ffb454" stroke-width="1.8" stroke-dasharray="4 2"
+                marker-end="url(#sAmber)" />
+              <text x="273" y="200" text-anchor="middle" fill="#e8eef7" font-size="10"
+                font-family="monospace">pipeToSelf(EntitiesEvolved)</text>
+
+              <!-- 5. Persist TickAdvanced + Kirchhoff -->
+              <line x1="202" y1="240" x2="483" y2="240" stroke="#4da6ff" stroke-width="1.6" marker-end="url(#sBlue)" />
+              <text x="342" y="234" text-anchor="middle" fill="#a9d4ff" font-size="9.5" font-family="monospace">persist
+                TickAdvanced(env, tick+1)</text>
+
+              <path d="M 202 258 L 238 258 L 238 275 L 206 275" fill="none" stroke="#4da6ff" stroke-width="1.5"
+                marker-end="url(#sBlue)" />
+              <text x="244" y="270" fill="#e8eef7" font-size="10"
+                font-family="monospace">KirchhoffPowerFlowSolver.solve()</text>
+
+              <!-- 6. Publish Global Tick -->
+              <line x1="202" y1="302" x2="483" y2="302" stroke="#3ddc97" stroke-width="1.8" marker-end="url(#sGreen)" />
+              <text x="342" y="296" text-anchor="middle" fill="#3ddc97" font-size="10" font-family="monospace">publish
+                GridTickMessage (Kafka)</text>
+
+              <!-- 7. Async Stream to GUI -->
+              <line x1="487" y1="335" x2="71" y2="335" stroke="#3ddc97" stroke-width="1.8" stroke-dasharray="5 3"
+                marker-end="url(#sGreen)" />
+              <text x="275" y="329" text-anchor="middle" fill="#3ddc97" font-size="10" font-family="monospace">Async
+                Kafka Consumer Poll (Stateless UI Update)</text>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-notes">
+        <ul>
+          <li><strong>Tassonomia Spazio-Temporale</strong>: a livello di cluster fisico i nodi operano in
+            <em>Distributed Concurrent Computing</em>, ma il tick crea un <strong>Contesto Temporale Logico Condiviso
+              <em>T</em></strong> sopra entità con contesti spaziali distinti (<em>S<sub>i</sub> &ne;
+              S<sub>j</sub></em>).
+          </li>
+          <li><strong>Logical Clock, Conit &amp; Latency Hiding</strong>: <code>tick</code> è un <em>Scalar Logical
+              Clock</em>; isolare ogni <code>GridEntityState</code> come <strong>Conit indipendente</strong> evita
+            sincronizzazioni continue intra-tick; <code>Future.sequence</code> + <code>pipeToSelf</code> nasconde la
+            latenza di rete senza bloccare la mailbox (permettendo di gestire <code>Pause</code> o <code>Stop</code> in
+            ogni istante).</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- =========================================================
+       SLIDE 7: DATA PLANE KAFKA & ALLINEAMENTO CLIENT REMOTI
+       ========================================================= -->
+    <section class="slide" data-time="7:00 - 8:00">
+      <div class="slide-header">
+        <div>
+          <p class="kicker">06 · Data Plane &amp; Osservabilità</p>
+          <h1>Streaming Telemetrico su Kafka &amp; Sincronizzazione Client</h1>
+        </div>
+        <span class="header-tag">Protobuf · ScalaPB · Multi-Topic Join</span>
+      </div>
+
+      <div class="content">
+        <div class="grid-3">
+          <div class="card green-left">
+            <span class="badge green">Topic 1 · Per-Entity Stream</span>
+            <h2><code>grid.entities.&lt;simId&gt;</code></h2>
+            <ul>
+              <li>Pubblicato da ogni <code>EntityActor</code> appena completato il proprio tick.</li>
+              <li>Keyed per <code>entityId</code> (garantisce l'ordine di partizione per singola entità).</li>
+              <li>Payload Protobuf: <code>EntityTelemetryMessage</code> (<code>tick</code>,
+                <code>GridEntityState</code>, <code>Flow</code>).
+              </li>
+            </ul>
+          </div>
+
+          <div class="card accent-left">
+            <span class="badge blue">Topic 2 · Global Tick Stream</span>
+            <h2><code>grid.ticks.&lt;simId&gt;</code></h2>
+            <ul>
+              <li>Pubblicato da <code>SimulationActor</code> dopo la risoluzione dei flussi sui cavi.</li>
+              <li>Keyed per <code>tick.toString</code>.</li>
+              <li>Payload Protobuf: <code>GridTickMessage</code> (<code>tick</code>, <code>Environment</code>,
+                <code>cableLoads</code>, <code>delta</code>).
+              </li>
+            </ul>
+          </div>
+
+          <div class="card amber-left">
+            <span class="badge amber">Topic 3 · Control Broadcast</span>
+            <h2><code>grid.control.&lt;simId&gt;</code></h2>
+            <ul>
+              <li>Pubblicato da <code>SimulationActor</code> ad ogni cambio di stato o configurazione.</li>
+              <li>Sincronizza tutte le GUI connesse su: <code>status</code>, <code>speed</code>, <code>delta</code> e
+                flag <code>degraded</code>.</li>
+              <li>Formato leggero UTF-8 pipe-delimited (<code>SimulationControlCodec</code>).</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="split-60-40">
+          <div class="card">
+            <h3>Come la GUI Stateless ricostruisce uno Snapshot Coerente (<code>RemoteSimulationBuilder</code>)</h3>
+            <ul>
+              <li><strong>Consumer Group Univoco + Replay</strong>: ogni GUI si connette con
+                <code>group.id = gui-consumer-&lt;UUID&gt;</code> e <code>auto.offset.reset = earliest</code>,
+                rileggendo la storia dei tick dal broker per popolare grafici e statistiche (ultimi 200 tick).
+              </li>
+              <li><strong>Barriera di Allineamento per Tick</strong>: poiché i messaggi su <code>grid.entities</code> e
+                <code>grid.ticks</code> viaggiano su topic diversi e arrivano in modo asincrono, il client mantiene code
+                per entità (<code>entityQueues</code>) e una mappa ordinata <code>pendingTicks</code>: emette un
+                <code>SimulationSnapshot</code> verso i <code>SignallingRef</code> della UI solo quando <strong>tutte le
+                  entità note hanno raggiunto quel tick</strong>.
+              </li>
+            </ul>
+          </div>
+
+          <div class="card purple-left">
+            <span class="badge purple">Isolamento dei Guasti</span>
+            <h2>Telemetria Non-Critica</h2>
+            <p>Il backend usa l'interfaccia <code>TelemetryPublisher</code> (con implementazione <code>NoOp</code> di
+              fallback):</p>
+            <p style="margin:0;">Un rallentamento o un errore di pubblicazione su Kafka <strong>non fa mai fallire il
+                tick</strong> né corrompe lo stato degli attori, che dipende esclusivamente dal journal su Redis.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-notes">
+        <ul>
+          <li><strong>Perché 3 topic separati?</strong> Ogni <code>EntityActor</code> pubblica autonomamente il proprio
+            stato dal nodo in cui si trova, senza dover rimandare l'intero oggetto di stato pesante a
+            <code>SimulationActor</code> (a cui manda solo il <code>Flow</code> energetico netto).
+          </li>
+          <li><strong>Il problema classico dei sistemi distribuiti lato client</strong>: i messaggi su
+            <code>grid.entities</code> e <code>grid.ticks</code> arrivano fuori ordine relativo.
+            <code>RemoteSimulationBuilder</code> realizza un join per numero di tick (barriera logica) prima di
+            aggiornare le proprietà reattive della GUI.
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- =========================================================
+       SLIDE 8: EVENT SOURCING, REDIS PERSISTENCE & CONSISTENZA
+       ========================================================= -->
+    <section class="slide" data-time="8:00 - 9:15">
+      <div class="slide-header">
+        <div>
+          <p class="kicker">07 · Stato Distribuito &amp; Persistenza</p>
+          <h1>Event Sourcing, Snapshotting &amp; Single-Writer su Redis</h1>
+        </div>
+        <span class="header-tag">Custom Pekko Persistence Plugin</span>
+      </div>
+
+      <div class="content" style="display:flex; align-items:stretch;">
+        <div class="grid-2" style="width:100%; align-items:stretch; gap:1.25rem;">
+          <div class="card red-left"
+            style="display:flex; flex-direction:column; justify-content:space-between; padding:1.35rem 1.4rem;">
+            <div>
+              <span class="badge red">Event Sourcing su Shared Storage</span>
+              <h2 style="margin:0.5rem 0 0.8rem;">Stato Ricostruibile come Sequenza di Eventi</h2>
+              <ul style="font-size:0.96rem; line-height:1.6;">
+                <li><strong>Oltre il Modello CRUD</strong>: l'attore non sovrascrive lo stato in memoria su un database
+                  tradizionale, ma persiste in modalità <em>append-only</em> ogni singola transizione come evento
+                  immutabile (<code>Initialized</code>, <code>Evolved</code>, <code>TickAdvanced</code>).</li>
+                <li><strong>Replay &amp; Piecewise Deterministic (PWD) Assumption</strong>: grazie al <em>Functional
+                    Core</em> puro, in caso di crash o migrazione l'attore ricarica la sequenza ordinata degli eventi
+                  dallo storage e converge deterministicamente all'esatto stato pre-guasto.</li>
+                <li><strong>Pessimistic Logging contro l'Output Commit Problem</strong>: l'evento viene committato
+                  stabilmente su Redis <strong>prima</strong> di confermare l'avanzamento al coordinatore o emettere
+                  telemetria su Kafka, impedendo a client e altri attori di osservare stati non persistiti.</li>
+              </ul>
+            </div>
+            <div class="callout" style="margin-top:0.8rem; font-size:0.85rem; border-left-color:var(--red);">
+              Persistenza esternalizzata: se un container muore, qualsiasi replica può riprendere l'attore senza perdita
+              di dati.
+            </div>
+          </div>
+
+          <div class="card accent-left"
+            style="display:flex; flex-direction:column; justify-content:space-between; padding:1.35rem 1.4rem;">
+            <div>
+              <span class="badge blue">Scalabilità del Recovery &amp; Consistenza</span>
+              <h2 style="margin:0.5rem 0 0.8rem;">Snapshotting, MTTR &amp; Single-Writer</h2>
+              <ul style="font-size:0.96rem; line-height:1.6;">
+                <li><strong>Logging + Checkpointing Periodico</strong>: rileggere migliaia di eventi rallenterebbe il
+                  riavvio nelle simulazioni lunghe. <code>EntityActor</code> salva un'istantanea completa dello stato
+                  ogni 100 eventi e pota gli eventi obsoleti, garantendo un tempo di ripartenza costante.</li>
+                <li><strong>Abbattimento del MTTR &amp; Availability</strong>: ridurre il tempo di recovery (<em>Mean
+                    Time To Repair</em>) massimizza direttamente la disponibilità del servizio:
+                  <code>Availability = MTTF / (MTTF + MTTR)</code>.
+                </li>
+                <li><strong>Single-Writer Invariant (Zero Lock Distribuiti)</strong>: Cluster Sharding garantisce che
+                  esista <strong>al più un'istanza attiva</strong> per ciascun attore. Benché lo store Redis sia
+                  condiviso da tutti i nodi, non servono lock o transazioni distribuite perché non esistono scritture
+                  concorrenti sullo stesso storico.</li>
+              </ul>
+            </div>
+            <div class="callout" style="margin-top:0.8rem; font-size:0.85rem; border-left-color:var(--blue);">
+              Consistenza forte garantita all'origine dal modello ad attori senza il costo di coordinamento a due fasi
+              (2PC).
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-notes">
+        <ul>
+          <li><strong>Perché soddisfa la PWD Assumption?</strong> Perché la fisica del modello è pura e deterministica:
+            a parità di sequenza di eventi loggati su Redis, lo stato ricostruito è identico bit-a-bit.</li>
+          <li><strong>Output Commit Problem</strong>: con <code>Effect.persist(...).thenRun(...)</code> adottiamo il
+            <strong>Pessimistic Logging</strong>: nessun altro attore o client vede un risultato prima che sia su stable
+            storage.
+          </li>
+          <li><strong>Logging + Checkpointing</strong>: gli snapshot ogni 100 eventi limitano la crescita del log e
+            riducono il <strong>MTTR</strong>, massimizzando l'<em>Availability = MTTF / (MTTF + MTTR)</em>.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- =========================================================
+       SLIDE 9: TEOREMA CAP E SCELTE PROGETTUALI
+       ========================================================= -->
+    <section class="slide" data-time="9:15 - 10:30">
+      <div class="slide-header">
+        <div>
+          <p class="kicker">08 · Teoria dei Sistemi Distribuiti</p>
+          <h1>Il Teorema CAP in GridSim: Scelte Progettuali</h1>
+        </div>
+        <span class="header-tag">CP Core · Split Brain Resolver</span>
+      </div>
+
+      <div class="content">
+        <div class="split-60-40" style="align-items:stretch;">
+          <div style="display:flex; flex-direction:column; gap:0.65rem;">
+            <div class="card accent-left" style="padding:0.75rem 1rem;">
+              <span class="badge blue">Write Path: CP · Safety over Liveness</span>
+              <h2 style="margin-bottom:0.35rem;">Consistenza (<em>C</em>) non negoziabile sul Backend</h2>
+              <ul style="font-size:0.86rem; line-height:1.42; margin:0;">
+                <li>In presenza di partizione (<em>P</em>), privilegiamo la <strong>Safety</strong> (nessun dato
+                  corrotto) rispetto alla <strong>Liveness</strong> sul lato isolato, per preservare il
+                  <em>Single-Writer Invariant</em> su Redis.
+                </li>
+                <li><strong>Monotonic Writes</strong>: il contatore <code>max_seq</code> in Redis garantisce scritture
+                  strettamente monotone per ogni <code>persistenceId</code>, evitando sovrascritture fuori ordine.</li>
+              </ul>
+            </div>
+
+            <div class="card amber-left" style="padding:0.75rem 1rem;">
+              <span class="badge amber">Mitigazione FLP &amp; Quorum N &ge; 2f + 1</span>
+              <h2 style="margin-bottom:0.35rem;">Split Brain Resolver (<code>keep-majority</code>,
+                <code>stable-after = 10s</code>)
+              </h2>
+              <ul style="font-size:0.86rem; line-height:1.42; margin:0;">
+                <li><strong>Quorum di Maggioranza (<em>N</em> = 3 &ge; 2<em>f</em> + 1, tollera <em>f</em> =
+                    1)</strong>: il lato maggioritario (2/3 nodi) resta attivo e ri-alloca gli shard; il lato
+                  minoritario (1/3) sacrifica la <em>Liveness</em> con <em>self-downing</em>.</li>
+                <li><strong>Partizione Simmetrica (1-1-1)</strong>: nessuno ha il quorum &rarr; tutto il cluster si
+                  ferma a tutela della <em>Safety</em>.</li>
+              </ul>
+            </div>
+
+            <div class="card green-left" style="padding:0.75rem 1rem;">
+              <span class="badge green">Read Path: BASE &amp; Monotonic Reads</span>
+              <h2 style="margin-bottom:0.35rem;">Soft State &amp; Eventual Consistency UI</h2>
+              <p style="font-size:0.85rem; line-height:1.42; margin:0;">La GUI segue il modello <strong>BASE</strong>: i
+                <code>SignallingRef</code> locali sono puro <strong>Soft State</strong> volatile (rigenerabile da
+                Kafka/HTTP). Il partizionamento per <code>entityId</code> + la guardia <code>tick &gt; lastTick</code>
+                garantiscono <strong>Monotonic Reads</strong> (la UI non torna mai indietro nel tempo) ed espongono
+                <code>PAUSED</code>/<code>DEGRADED</code> su errori.
+              </p>
+            </div>
+          </div>
+
+          <div class="diagram-box" style="display:flex; align-items:center; justify-content:center;">
+            <svg viewBox="0 0 380 265" xmlns="http://www.w3.org/2000/svg">
+              <rect x="10" y="10" width="360" height="245" rx="10" fill="#121b2b" stroke="#2a3954" />
+              <text x="190" y="34" text-anchor="middle" fill="#e8eef7" font-size="12" font-weight="bold">Network
+                Partition (P) su Cluster a 3 Nodi</text>
+
+              <!-- Majority box -->
+              <rect x="24" y="52" width="200" height="125" rx="8" fill="rgba(61,220,151,0.08)" stroke="#3ddc97"
+                stroke-width="1.8" />
+              <text x="124" y="72" text-anchor="middle" fill="#3ddc97" font-size="11" font-weight="bold">Maggioranza
+                (2/3 Nodi) &rarr; UP</text>
+              <rect x="38" y="84" width="76" height="42" rx="6" fill="#182235" stroke="#3ddc97" />
+              <text x="76" y="109" text-anchor="middle" fill="#e8eef7" font-size="11">Node 1</text>
+              <rect x="134" y="84" width="76" height="42" rx="6" fill="#182235" stroke="#3ddc97" />
+              <text x="172" y="109" text-anchor="middle" fill="#e8eef7" font-size="11">Node 2</text>
+              <text x="124" y="150" text-anchor="middle" fill="#a9d4ff" font-size="10">Respawn attori + Single
+                Writer</text>
+              <text x="124" y="165" text-anchor="middle" fill="#3ddc97" font-size="9.5"
+                font-family="monospace">Keep-Majority: SURVIVES</text>
+
+              <!-- Partition line -->
+              <line x1="242" y1="48" x2="242" y2="185" stroke="#ff6b7b" stroke-width="2.5" stroke-dasharray="5 4" />
+              <text x="242" y="198" text-anchor="middle" fill="#ff6b7b" font-size="10"
+                font-weight="bold">PARTITION</text>
+
+              <!-- Minority box -->
+              <rect x="258" y="52" width="100" height="125" rx="8" fill="rgba(255,107,123,0.08)" stroke="#ff6b7b"
+                stroke-width="1.8" />
+              <text x="308" y="72" text-anchor="middle" fill="#ff6b7b" font-size="11" font-weight="bold">Minoranza
+                (1/3)</text>
+              <rect x="270" y="84" width="76" height="42" rx="6" fill="#2d161e" stroke="#ff6b7b" />
+              <text x="308" y="109" text-anchor="middle" fill="#ff6b7b" font-size="11">Node 3 (X)</text>
+              <text x="308" y="150" text-anchor="middle" fill="#98a7c0" font-size="10">Stop Shards</text>
+              <text x="308" y="165" text-anchor="middle" fill="#ff6b7b" font-size="9.5"
+                font-family="monospace">SELF-DOWN</text>
+
+              <!-- Bottom Redis -->
+              <rect x="65" y="212" width="250" height="32" rx="6" fill="#2d161e" stroke="#ff6b7b" />
+              <text x="190" y="232" text-anchor="middle" fill="#e8eef7" font-size="11">Redis Journal: Scritture solo da
+                Node 1 &amp; 2</text>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-notes">
+        <ul>
+          <li><strong>Safety vs Liveness</strong>: sul Write Path siamo <strong>CP</strong> — in caso di partizione
+            privilegiamo la <em>Safety</em> del journal Redis rispetto alla <em>Liveness</em> del lato minoritario.</li>
+          <li><strong>Quorum &amp; FLP</strong>: con <em>N</em> = 3 nodi e <code>keep-majority</code> tolleriamo
+            <em>f</em> = 1 nodo isolato/crashato (<em>N &ge; 2f + 1</em>) facendo <em>self-downing</em> della minoranza.
+          </li>
+          <li><strong>BASE &amp; Client-Centric Consistency</strong>: sulla GUI i <code>SignallingRef</code> sono puro
+            <strong>Soft State</strong>; abbiamo <em>Monotonic Writes</em> (<code>max_seq</code> su Redis) e
+            <em>Monotonic Reads</em> (partizionamento Kafka + guardia <code>tick &gt; lastTick</code>).
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- =========================================================
+       SLIDE 10: FAULT TOLERANCE INTRA-TICK (TIMEOUT, BACKOFF, IDEMPOTENZA)
+       ========================================================= -->
+    <section class="slide" data-time="10:30 - 11:30">
+      <div class="slide-header">
+        <div>
+          <p class="kicker">09 · Resilienza &amp; Semantica di Consegna</p>
+          <h1>Fault Tolerance Intra-Tick: Timeout, Backoff &amp; Idempotenza</h1>
+        </div>
+        <span class="header-tag">At-Least-Once · Idempotent Evolve</span>
+      </div>
+
+      <div class="content" style="display:flex; align-items:stretch;">
+        <div class="grid-3" style="width:100%; align-items:stretch; gap:1.25rem;">
+          <div class="card red-left"
+            style="display:flex; flex-direction:column; justify-content:space-between; padding:1.35rem 1.4rem;">
+            <div>
+              <span class="badge red">1 · Fault Detection: Omission &amp; Crash</span>
+              <h2 style="margin:0.5rem 0 0.8rem;">Timeout sul Gather</h2>
+              <ul style="font-size:0.98rem; line-height:1.6;">
+                <li>Ogni richiesta <code>ask(Evolve)</code> ha un <code>tickTimeout</code> configurabile (default
+                  <code>1s</code>).
+                </li>
+                <li>Rileva <strong>Omission / Timing failures</strong> (ritardi) e <strong>Crash failures</strong> di un
+                  nodo: se anche un solo <code>EntityActor</code> non risponde, <code>Future.sequence</code> fallisce e
+                  invia <code>TickFailed(ex)</code>.</li>
+                <li>Il contatore del tick <strong>non avanza</strong> e nessun tick parziale viene emesso.</li>
+              </ul>
+            </div>
+            <div class="callout" style="margin-top:0.8rem; font-size:0.85rem; border-left-color:var(--red);">
+              Garanzia: nessuna vista inconsistente o avanzamento spurio su timeout parziale.
+            </div>
+          </div>
+
+          <div class="card amber-left"
+            style="display:flex; flex-direction:column; justify-content:space-between; padding:1.35rem 1.4rem;">
+            <div>
+              <span class="badge amber">2 · Time Redundancy &amp; Fail-Safe</span>
+              <h2 style="margin:0.5rem 0 0.8rem;">Exponential Backoff &amp; <code>DEGRADED</code></h2>
+              <ul style="font-size:0.98rem; line-height:1.6;">
+                <li>Affianchiamo alla <strong>Physical Redundancy</strong> (3 repliche) la <strong>Time
+                    Redundancy</strong>: retry con backoff esponenziale + supervisione <code>restartWithBackoff</code>.
+                </li>
+                <li><strong>Comportamento Fail-Safe</strong>: dopo <code>degradedThreshold = 3</code> fallimenti
+                  consecutivi, il sistema si porta nello stato esplicito <code>DEGRADED</code> (e la GUI in
+                  <code>PAUSED</code> se l'API HTTP cade).
+                </li>
+              </ul>
+            </div>
+            <div class="formula-box" style="margin-top:0.8rem;">delay = min(base &middot; 2<sup>failures &minus;
+                1</sup>, max)</div>
+          </div>
+
+          <div class="card green-left"
+            style="display:flex; flex-direction:column; justify-content:space-between; padding:1.35rem 1.4rem;">
+            <div>
+              <span class="badge green">3 · Idempotenza sulle Retry</span>
+              <h2 style="margin:0.5rem 0 0.8rem;">Evitare il Doppio Calcolo</h2>
+              <ul style="font-size:0.98rem; line-height:1.6;">
+                <li>Quando il tick <em>T</em> fallisce a metà, alcune entità avevano <strong>già calcolato e
+                    persistito</strong> il tick <em>T</em>, mentre altre no.</li>
+                <li>Al retry del tick <em>T</em>, <code>SimulationActor</code> re-invia
+                  <code>Evolve(..., tick = T)</code> a tutte le entità.
+                </li>
+                <li><code>EntityActor</code> confronta <code>tick &lt;= lastTick</code>: se ha già processato
+                  <em>T</em>, <strong>restituisce subito <code>lastFlow</code> in cache</strong> senza ricalcolare né
+                  persistere un secondo evento!
+                </li>
+              </ul>
+            </div>
+            <div class="callout" style="margin-top:0.8rem; font-size:0.85rem; border-left-color:var(--green);">
+              Semantica <em>at-least-once</em> resa sicura da stato persistito su Redis + cache locale.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-notes">
+        <ul>
+          <li><strong>Tassonomia Dependability</strong>: distinguiamo <em>Omission/Timing failures</em>
+            (<code>tickTimeout</code>) e <em>Crash failures</em>, combinando <strong>Physical Redundancy</strong> (3
+            nodi) e <strong>Time Redundancy</strong> (retry esponenziale).</li>
+          <li><strong>Fail-Safe &amp; Idempotenza</strong>: dopo 3 fallimenti consecutivi, il sistema entra in stato
+            sicuro ed esplicito <code>DEGRADED</code>; al retry del tick 10, le entità che avevano già risposto usano
+            <code>tick &lt;= lastTick</code> per restituire <code>lastFlow</code> senza doppio calcolo.
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- =========================================================
+       SLIDE 11: VALIDAZIONE, CHAOS TESTING & CRASH RECOVERY
+       ========================================================= -->
+    <section class="slide" data-time="11:30 - 12:15">
+      <div class="slide-header">
+        <div>
+          <p class="kicker">10 · Validazione &amp; Testing</p>
+          <h1>Verificare la Resilienza: Dal Unit Testing al Chaos Testing</h1>
+        </div>
+        <span class="header-tag">51 Unit Specs · 5 Docker Integration Specs</span>
+      </div>
+
+      <div class="content">
+        <div class="grid-3">
+          <div class="card accent-left">
+            <span class="badge blue">Livello 1 · Unit &amp; Actor TestKit</span>
+            <h2>Dominio &amp; Persistenza</h2>
+            <ul>
+              <li><strong>51 test suite</strong> sul Functional Core: calcoli fisici, solutori di Kirchhoff, DSL con
+                validazione accumulante, codec Protobuf e motore statistiche (sviluppato in TDD).</li>
+              <li><code>SimulationActorSpec</code> &amp; <code>EntityActorSpec</code> (con
+                <code>PersistenceTestKit</code>):
+                <ul>
+                  <li>Verifica di batch parzialmente falliti e <strong>retry idempotenti</strong>.</li>
+                  <li>Transizione/uscita dallo stato <code>DEGRADED</code>.</li>
+                  <li><code>restartWithBackoff</code> su fallimento del journal e ri-armo automatico del timer su
+                    <code>RecoveryCompleted</code>.
+                  </li>
+                </ul>
+              </li>
+            </ul>
+          </div>
+
+          <div class="card green-left">
+            <span class="badge green">Livello 2 · Boundary Crash Tests</span>
+            <h2>Client vs Infrastruttura</h2>
+            <ul>
+              <li>Eseguiti contro container Docker reali (<code>kafka</code> e <code>redis</code> avviati da Gradle in
+                <code>integrationTest</code>):
+              </li>
+              <li><code>KafkaTelemetryIntegrationSpec</code> &amp; <code>RemoteSimulationBuilderIntegrationSpec</code>:
+                verifica end-to-end della pipeline Protobuf e del riallineamento dei tick lato GUI.</li>
+              <li><code>HttpApiUnavailableIntegrationSpec</code> &amp; <code>KafkaUnavailableIntegrationSpec</code>:
+                verifica che la GUI degradi in modo predicibile (timeout 5s e fallback a <code>PAUSED</code>) senza
+                bloccare la UI.</li>
+            </ul>
+          </div>
+
+          <div class="card red-left">
+            <span class="badge red">Livello 3 · Cluster Chaos Test</span>
+            <h2><code>ClusterResilienceIntegrationSpec</code></h2>
+            <p>Avvia un <strong>vero cluster Pekko a 3 nodi</strong> connesso a Redis e uccide bruscamente i nodi:</p>
+            <ol>
+              <li><strong>Singleton Failover</strong>: crash del nodo master &rarr; ri-elezione di
+                <code>SimulationRegistryActor</code> su un superstite e recupero delle simulazioni da Redis.
+              </li>
+              <li><strong>Sharding Failover + Idempotency</strong>: crash del nodo di un <code>EntityActor</code> &rarr;
+                migrazione su altro nodo, replay da Redis e risposta idempotente al retry dello stesso tick.</li>
+              <li><strong>Split Brain Resolver</strong>: crash simultaneo di 2 nodi su 3 &rarr; il nodo superstite
+                (minoranza 1/3) esegue <em>self-downing</em>.</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-notes">
+        <ul>
+          <li>Non ci siamo limitati a progettare la fault-tolerance sulla carta: l'abbiamo verificata con test
+            automatici che iniettano guasti reali.</li>
+          <li>In particolare, <code>ClusterResilienceIntegrationSpec</code> tira su 3 <code>ActorSystem</code> in
+            cluster con Redis e testa l'uccisione improvvisa dei nodi, verificando i 3 pilastri: ri-elezione del
+            Singleton, migrazione dello Sharding con replay da Redis + idempotenza del tick, e auto-spegnimento della
+            minoranza con lo Split Brain Resolver.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- =========================================================
+       SLIDE 12: I 5 GOAL & DEGREE OF TRANSPARENCY
+       ========================================================= -->
+    <section class="slide" data-time="12:15 - 13:00">
+      <div class="slide-header">
+        <div>
+          <p class="kicker">11 · Valutazione vs Teoria del Corso</p>
+          <h1>I 5 Goal dei Sistemi Distribuiti &amp; Degree of Transparency</h1>
+        </div>
+        <span class="header-tag">Tanenbaum + Omicini · Teoria &rarr; GridSim</span>
+      </div>
+
+      <div class="content">
+        <div class="grid-2">
+          <div class="card accent-left">
+            <span class="badge blue">I 4 Goal Classici + 5&deg; Goal</span>
+            <ul style="font-size:0.9rem; line-height:1.55;">
+              <li><strong>1. Resource Availability</strong>: il motore di simulazione backend sul cluster è condiviso
+                tra più client GUI leggeri e disaccoppiati.</li>
+              <li><strong>2. Transparency</strong>: nasconde la distribuzione dove utile, ma regola intenzionalmente il
+                <em>Degree of Transparency</em> (v. box a destra).
+              </li>
+              <li><strong>3. Openness</strong>: confini esterni <em>language-agnostic</em> con <strong>HTTP/REST
+                  JSON</strong> e <strong>Protobuf IDL</strong> (interoperabilità); messaggi interni JVM-coupled per
+                efficienza.</li>
+              <li><strong>4. Scalability</strong>: scala nella dimensione <strong>Size</strong> via Cluster Sharding e
+                <em>Latency Hiding</em> asincrono (confinata a un solo dominio Docker Compose).
+              </li>
+              <li><strong>5. Situatedness</strong>: <strong>Non applicabile</strong> al sistema attuale
+            </ul>
+          </div>
+
+          <div class="card amber-left">
+            <span class="badge amber">Degree of Transparency in GridSim</span>
+            <h2>Quale Trasparenza e Fino a che Punto?</h2>
+            <ul style="font-size:0.89rem; line-height:1.52;">
+              <li><strong>Access, Location, Migration &amp; Relocation</strong> &rarr; <span
+                  style="color:var(--green);"><strong>Sì</strong></span>: Sharding e Cluster
+                Singleton nascondono nodo fisico e migrazioni post-crash.</li>
+              <li><strong>Replication</strong> &rarr; <span style="color:var(--green);"><strong>Sì</strong></span>: il
+                gateway Caddy su <code>:8080</code> maschera le 3 repliche backend dietro un unico endpoint.</li>
+              <li><strong>Concurrency</strong> &rarr; <span style="color:var(--green);"><strong>Sì</strong></span>:
+                mailbox single-threaded degli attori + <em>Single-Writer</em> su Redis.</li>
+              <li><strong>Failure Transparency</strong> &rarr; <span style="color:var(--amber);"><strong>Parziale
+                    (Scelta Intenzionale)</strong></span>: i crash transitori sono mascherati intra-cluster, ma
+                <strong>non</strong> all'utente su guasti persistenti
+                (<code>DEGRADED</code> / <code>PAUSED</code>): la trasparenza totale non è sempre desiderabile!
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-notes">
+        <ul>
+          <li><strong>Mappatura diretta con la teoria del corso</strong>: questa slide fa il bilancio teorico di GridSim
+            rispetto ai 5 obiettivi del corso.</li>
+          <li>Sottolineare due scelte critiche che piacciono molto all'esame: (1) la <strong>Failure Transparency
+              intenzionalmente parziale</strong> (non nascondiamo i guasti persistenti all'operatore umano), e (2)
+            l'onestà sulla <strong>Situatedness</strong> (non essendo collegato a sensori/smart-meter reali, il nostro
+            simulatore soddisfa i 4 goal classici ma non è un sistema situato).</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- =========================================================
+       SLIDE 13: LIMITI ATTUALI & SVILUPPI FUTURI
+       ========================================================= -->
+    <section class="slide" data-time="13:00 - 13:40">
+      <div class="slide-header">
+        <div>
+          <p class="kicker">12 · Analisi Critica &amp; Sviluppi Futuri</p>
+          <h1>Trade-off Architetturali, Limiti Attuali e Future Works</h1>
+        </div>
+        <span class="header-tag">Critical Evaluation</span>
+      </div>
+
+      <div class="content">
+        <div class="grid-2">
+          <div class="card amber-left">
+            <span class="badge amber">Limiti Attuali dell'Implementazione</span>
+            <h2>Cosa abbiamo semplificato e perché</h2>
+            <ul>
+              <li><strong>Redis e Kafka come Single Points of Failure (SPOF)</strong>: il cluster Pekko tollera il crash
+                dei propri nodi (3 repliche), ma nel <code>compose.yml</code> attuale Redis e Kafka girano come istanze
+                singole non replicate.</li>
+              <li><strong>Serializzazione Java Intra-Cluster e su Redis</strong>: mentre su Kafka usiamo Protobuf, i
+                messaggi interni Pekko e gli eventi/snapshot in Redis usano la serializzazione Java (più semplice da
+                cablare, ma accoppiata alle classi JVM).</li>
+              <li><strong>Scritture Pipeline vs Transazioni Atomiche in Redis</strong>: <code>RedisJournal</code> usa il
+                pipelining Jedis anziché blocchi atomici <code>MULTI/EXEC</code> o script Lua.</li>
+              <li><strong>Health-Check Passivi sul Gateway</strong>: Caddy rileva un nodo caduto passivamente ai primi
+                errori HTTP invece di interrogare una probe di readiness del cluster.</li>
+            </ul>
+          </div>
+
+          <div class="card green-left">
+            <span class="badge green">Direzioni di Sviluppo Futuro</span>
+            <h2>Evoluzione verso un Ambiente Production-Grade</h2>
+            <ul>
+              <li><strong>High Availability per Storage e Broker</strong>:
+                <ul>
+                  <li>Passaggio a <strong>Redis Sentinel / Redis Cluster</strong> con volumi persistenti e failover
+                    automatico.</li>
+                  <li>Cluster Kafka multi-broker con <code>replication.factor = 3</code> e
+                    <code>min.insync.replicas = 2</code>.
+                  </li>
+                </ul>
+              </li>
+              <li><strong>Unificazione Schema-Driven (Protobuf Everywhere)</strong>: estendere i codec ScalaPB anche ai
+                messaggi remoti di Pekko Artery e agli eventi persistiti su Redis per abilitare <em>schema
+                  evolution</em> e rolling upgrades.</li>
+              <li><strong>Osservabilità del Cluster &amp; Sicurezza</strong>:
+                <ul>
+                  <li>Integrazione di <code>pekko-management</code> per esporre health check attivi
+                    (<code>/alive</code>, <code>/ready</code>) verso Caddy.</li>
+                  <li>Autenticazione JWT sulle rotte HTTP e SASL/TLS sui topic Kafka.</li>
+                </ul>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-notes">
+        <ul>
+          <li><strong>Analisi critica onesta</strong>: aver tolto lo stato dai nodi Pekko li ha resi tolleranti ai
+            guasti, ma ha spostato il Single Point of Failure su Redis e Kafka, che nel Docker Compose didattico sono a
+            singola istanza.</li>
+          <li>Inoltre, la distinzione tra Protobuf (usato su Kafka) e Java Serialization (usata dentro il cluster e su
+            Redis) è un compromesso pragmatico che in futuro andrebbe unificato su Protobuf.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- =========================================================
+       SLIDE 14: CONCLUSIONE & Q&A / DEMO
+       ========================================================= -->
+    <section class="slide" data-time="13:40 - 15:00">
+      <div class="slide-header">
+        <div>
+          <p class="kicker">13 · Conclusioni</p>
+          <h1>Grazie per l'Attenzione!</h1>
+        </div>
+        <span class="header-tag">Q&amp;A · Live Demo</span>
+      </div>
+
+      <div class="content"
+        style="display:flex; flex-direction:column; justify-content:center; align-items:center; min-height:360px; text-align:center;">
+        <div style="max-width:760px; width:100%; display:flex; flex-direction:column; gap:1.6rem; align-items:center;">
+          <div
+            style="display:inline-flex; align-items:center; gap:0.6rem; background:rgba(77,166,255,0.08); border:1px solid rgba(77,166,255,0.25); border-radius:999px; padding:0.45rem 1.2rem;">
+            <span
+              style="display:inline-block; width:9px; height:9px; border-radius:50%; background:var(--green);"></span>
+            <span style="color:var(--text); font-size:0.95rem; font-weight:600;">GridSim-Distributed · Progetto di
+              Sistemi Distribuiti</span>
+          </div>
+
+          <h2 style="font-size:2.2rem; font-weight:800; color:var(--text); margin:0; line-height:1.2;">
+            Siamo pronti per la <span style="color:var(--green);">Live Demo</span>
+          </h2>
+        </div>
+      </div>
+
+      <div class="slide-notes">
+        <ul>
+          <li><strong>Chiusura e passaggio alla Demo/Q&amp;A</strong>: ringraziamo la commissione per l'attenzione.</li>
+          <li>Possiamo aprire la sessione di domande oppure passare direttamente ad aprire la finestra della GUI ScalaFX
+            per mostrare il cluster in esecuzione e, se richiesto, simulare l'abbattimento di un nodo con
+            <code>docker kill</code>.
+          </li>
+        </ul>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Speaker Notes Drawer -->
+  <div class="notes-drawer" id="notesDrawer">
+    <h4>
+      <span>Speaker Notes (Premi N per chiudere)</span>
+      <span id="notesTime"></span>
+    </h4>
+    <div id="notesContent"></div>
+  </div>
+
+  <!-- Progress Bar & Footer -->
+  <div class="progress-track">
+    <div class="progress-fill" id="progressFill"></div>
+  </div>
+
+  <div class="footer-bar">
+    <div>
+      <strong>GridSim-Distributed</strong> · Matteo Bambini &amp; Michele Nardini
+    </div>
+    <div class="nav-controls">
+      <button class="nav-btn" onclick="prevSlide()" title="Slide precedente (←)">&#8592; Prev</button>
+      <span id="slideCounter" style="font-family:var(--mono); min-width:64px; text-align:center;">1 / 13</span>
+      <button class="nav-btn" onclick="nextSlide()" title="Slide successiva (→)">Next &#8594;</button>
+      <button class="nav-btn" onclick="toggleNotes()" title="Mostra/Nascondi Note Speaker (N)">Notes [N]</button>
+      <button class="nav-btn" onclick="toggleFullscreen()" title="Schermo intero (F)">Fullscreen [F]</button>
+    </div>
+  </div>
+
+  <script>
+    const slides = Array.from(document.querySelectorAll('.slide'));
+    const progressFill = document.getElementById('progressFill');
+    const slideCounter = document.getElementById('slideCounter');
+    const notesDrawer = document.getElementById('notesDrawer');
+    const notesContent = document.getElementById('notesContent');
+    const notesTime = document.getElementById('notesTime');
+    let current = 0;
+
+    function updateDeck() {
+      slides.forEach((s, idx) => s.classList.toggle('active', idx === current));
+      slideCounter.textContent = `${current + 1} / ${slides.length}`;
+      progressFill.style.width = `${((current + 1) / slides.length) * 100}%`;
+
+      const activeSlide = slides[current];
+      const notesEl = activeSlide.querySelector('.slide-notes');
+      notesContent.innerHTML = notesEl ? notesEl.innerHTML : '<p>Nessuna nota per questa slide.</p>';
+      notesTime.textContent = activeSlide.dataset.time ? `⏱ ${activeSlide.dataset.time}` : '';
+    }
+
+    function nextSlide() {
+      if (current < slides.length - 1) {
+        current++;
+        updateDeck();
+      }
+    }
+
+    function prevSlide() {
+      if (current > 0) {
+        current--;
+        updateDeck();
+      }
+    }
+
+    function toggleNotes() {
+      notesDrawer.classList.toggle('visible');
+    }
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => { });
+      } else {
+        document.exitFullscreen().catch(() => { });
+      }
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (['ArrowRight', 'PageDown', ' '].includes(e.key)) {
+        e.preventDefault();
+        nextSlide();
+      } else if (['ArrowLeft', 'PageUp'].includes(e.key)) {
+        e.preventDefault();
+        prevSlide();
+      } else if (e.key === 'Home') {
+        current = 0;
+        updateDeck();
+      } else if (e.key === 'End') {
+        current = slides.length - 1;
+        updateDeck();
+      } else if (e.key === 'n' || e.key === 'N') {
+        toggleNotes();
+      } else if (e.key === 'f' || e.key === 'F') {
+        toggleFullscreen();
+      }
+    });
+
+    updateDeck();
+  </script>
+
+</body>
+
+</html>
