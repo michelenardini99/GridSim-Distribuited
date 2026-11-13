@@ -49,22 +49,18 @@ Per ogni slide trovi:
 
 ### Punti chiave
 - **1. Resource Sharing & Separation of Concerns**:
-  - Motore di simulazione (CPU/state-heavy, continuo) disaccoppiato dalla GUI (interaction-heavy).
-  - Più GUI possono osservare la stessa simulazione contemporaneamente; un cluster può ospitare più simulazioni.
+  - Motore di simulazione (CPU/state-heavy, esecuzione continua) disaccoppiato dalle GUI (interaction-heavy).
+  - Un cluster backend condiviso può eseguire più simulazioni; più client GUI remoti possono attaccarsi, osservare e staccarsi liberamente.
 - **2. Parallelismo Computazionale & Scalabilità Orizzontale**:
-  - Il calcolo locale delle entità dentro un tick è intrinsecamente parallelo $\rightarrow$ distribuibile su più nodi tramite **Cluster Sharding**.
-- **3. Fault Tolerance & Dependability**:
-  - Simulazioni long-running: se un attore o un intero nodo del cluster crasha, la simulazione non deve perdere i progressi ma ripartire da uno store condiviso.
-- **4. Trasparenza Selettiva**:
-  - **Sì** a *Location* e *Migration Transparency* (indirizzamento logico).
-  - **No** a *Failure Transparency* totale verso l'utente (la GUI dichiara apertamente se il sistema è degradato o disconnesso, invece di mostrare dati obsoleti).
+  - Il calcolo locale delle entità dentro un tick è intrinsecamente indipendente $\rightarrow$ distribuibile su più nodi fisici tramite **Cluster Sharding**.
+- **3. Resilienza & Dependability (Fault Tolerance)**:
+  - Nelle simulazioni long-running il crash di un processo non deve distruggere lo stato: persistenza esternalizzata su Redis e migrazione trasparente degli shard sui nodi superstiti.
 
 ### Traccia discorsiva
-> "Perché distribuire questo sistema? Ci sono quattro motivazioni principali.
-> La prima è il **Resource Sharing e la separazione delle responsabilità**: il motore di calcolo deve girare in modo continuo e deterministico su macchine carrozzate, mentre i client GUI devono restare leggeri e reattivi; disaccoppiandoli, più utenti possono osservare la stessa simulazione in contemporanea da workstation diverse.
-> La seconda è la **scalabilità orizzontale**: poiché entro un singolo tick ogni entità calcola il proprio bilancio indipendentemente dalle altre, possiamo distribuire le entità su più nodi di un cluster.
-> La terza è la **Fault Tolerance**: se cade un nodo del backend, la simulazione deve sopravvivere e riprendere su un nodo superstite senza perdere stato.
-> Infine, abbiamo fatto una scelta precisa sulla **trasparenza**: sfruttiamo *Location* e *Migration Transparency* all'interno del cluster, ma rifiutiamo di nascondere i fallimenti all'operatore umano: se il backend è degradato o disconnesso, l'interfaccia lo segnala esplicitamente."
+> "Perché distribuire questo sistema anziché realizzare una classica applicazione desktop monolitica? Ci sono tre motivazioni architetturali concrete:
+> La prima è il **Resource Sharing e la separazione dei compiti**: il motore di simulazione è un processo continuo e pesante che deve girare in modo affidabile su un cluster, mentre le GUI sono interattive e devono restare fluide; disaccoppiandoli, più client possono osservare contemporaneamente la stessa simulazione senza rubare cicli di CPU al calcolo matematico.
+> La seconda è la **scalabilità orizzontale**: poiché dentro ciascun tick ogni casa, batteria o pannello calcola il proprio bilancio in totale autonomia, decomponiamo la rete in attori distribuiti con il **Cluster Sharding**, sfruttando le risorse di più nodi fisici in parallelo.
+> La terza è la **Fault Tolerance**: una simulazione su vasta scala non può perdere ore di calcolo se un container cade. Con lo stato esternalizzato su Redis, se un nodo del cluster fallisce, gli attori vengono istantaneamente ricreati sui nodi sani e riprendono dall'ultimo tick consolidato senza alcuna perdita di dati."
 
 ---
 
@@ -176,13 +172,15 @@ Per ogni slide trovi:
   - Il contatore `max_seq` su Redis garantisce **Monotonic Writes** per ciascuna entità.
 - **Mitigazione pratica FLP & Quorum $N \ge 2f + 1$**:
   - **Split Brain Resolver (`keep-majority`, `stable-after = 10s`)** su $N = 3$ nodi ($N \ge 2f + 1$, tollera $f = 1$): il lato maggioritario (2/3) sopravvive e ri-alloca gli shard; il lato minoritario (1/3) fa *self-downing* sacrificando la *Liveness*. Su partizione simmetrica (1-1-1) l'intero cluster si ferma a tutela della *Safety*.
-- **Read Path: BASE & Monotonic Reads**:
-  - La GUI segue il modello **BASE**: i `SignallingRef` sono puro **Soft State** volatile (ricostruibile da Kafka/HTTP). Il partizionamento per `entityId` + la guardia `tick > lastTick` garantiscono **Monotonic Reads** (la UI non torna mai indietro nel tempo) ed espongono `PAUSED` / `DEGRADED` su errori.
+- **Read Path: Modello BASE & Monotonic Reads**:
+  - Il client adotta il modello **BASE**: non ha memoria persistente ma solo **Soft State** volatile in memoria, rigenerabile a caldo rileggendo Kafka.
+  - Garantisce **Monotonic Reads**: l'interfaccia avanza solo su tick strettamente crescenti, impedendo all'utente di osservare la simulazione tornare indietro nel tempo.
+  - Comportamento **Fail-Safe**: in caso di guasti del cluster o perdita di connessione, passa esplicitamente a `PAUSED` o `DEGRADED` invece di spacciare dati vecchi per attuali.
 
 ### Traccia discorsiva
 > "Colleghiamo ora queste scelte al **Teorema CAP** e al consenso. In presenza di una partizione di rete ($P$), sul **Write Path** del backend abbiamo scelto **CP**, ovvero **Safety over Liveness**: non possiamo tollerare *split-brain* con due attori che scrivono con lo stesso `sequenceNr` su Redis, dove peraltro `max_seq` garantisce **Monotonic Writes**.
 > Per imporre questa scelta usiamo lo **Split Brain Resolver `keep-majority`**: con 3 nodi ($N = 3 \ge 2f + 1$, quindi tolleriamo $f = 1$ nodo isolato), solo il lato con il quorum di maggioranza (2 su 3) sopravvive e ri-spawna gli attori, mentre la minoranza sacrifica la *Liveness* facendo *self-downing*.
-> Sul **Read Path della GUI**, invece, adottiamo il modello **BASE**: lo stato nei `SignallingRef` è puro **Soft State** rigenerabile da Kafka/HTTP, con **Monotonic Reads** garantite dal partizionamento per `entityId` e dalla guardia `tick > lastTick`."
+> Sul **Read Path dei client**, invece, adottiamo il modello **BASE**: la GUI mantiene solo un **Soft State** volatile, completamente rigenerabile rileggendo i flussi da Kafka. Il client impone la proprietà di **Monotonic Reads**, scartando eventuali messaggi fuori ordine per evitare che l'utente veda la simulazione regredire nel tempo, e adotta un comportamento *fail-safe* evidenziando subito lo stato `PAUSED` o `DEGRADED` in caso di perdita di contatto con il cluster."
 
 ---
 
